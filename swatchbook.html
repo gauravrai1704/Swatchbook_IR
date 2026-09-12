@@ -1,0 +1,2532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Swatchbook — an interactive clothing information retrieval lab. Search 100 products using VSM, BM25, SDM, and phrase/proximity ranking algorithms.">
+<title>Swatchbook — Luxury IR Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* — Core palette — */
+  --void:        #08070A;
+  --abyss:       #0E0D12;
+  --surface:     #13111A;
+  --surface-2:   #1A1824;
+  --surface-3:   #211F2E;
+  --glass:       rgba(255,255,255,0.03);
+  --glass-border:rgba(255,255,255,0.07);
+
+  /* — Gold system — */
+  --gold-1:  #F5E6A3;
+  --gold-2:  #D4A843;
+  --gold-3:  #C9913B;
+  --gold-4:  #8B5E1A;
+  --gold-glow: rgba(212, 168, 67, 0.15);
+  --gold-grad: linear-gradient(135deg, #F5E6A3 0%, #D4A843 45%, #C9913B 100%);
+
+  /* — Text — */
+  --text-primary:   #F0ECE4;
+  --text-secondary: #9B95A8;
+  --text-muted:     #5A5568;
+  --text-gold:      #D4A843;
+
+  /* — Semantic — */
+  --accent-red:   #C0392B;
+  --accent-teal:  #2ECC8A;
+  --hairline:     rgba(255,255,255,0.06);
+  --hairline-2:   rgba(255,255,255,0.10);
+
+  /* — Radius & shadow — */
+  --r-sm: 6px;
+  --r-md: 12px;
+  --r-lg: 20px;
+  --shadow-gold: 0 0 40px rgba(212,168,67,0.12), 0 4px 24px rgba(0,0,0,0.6);
+  --shadow-card: 0 8px 40px rgba(0,0,0,0.5);
+  --shadow-inset: inset 0 1px 0 rgba(255,255,255,0.05);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+
+body {
+  background: var(--void);
+  color: var(--text-primary);
+  font-family: 'Space Grotesk', -apple-system, sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ═══════════════════════════════════════════════
+   ANIMATED BACKGROUND
+═══════════════════════════════════════════════ */
+.bg-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.bg-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.18;
+  animation: drift 20s ease-in-out infinite alternate;
+}
+.bg-orb-1 {
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, #C9913B 0%, transparent 70%);
+  top: -200px; left: -100px;
+  animation-duration: 25s;
+}
+.bg-orb-2 {
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, #2D1B69 0%, transparent 70%);
+  top: 30%; right: -150px;
+  animation-duration: 18s;
+  animation-delay: -8s;
+}
+.bg-orb-3 {
+  width: 400px; height: 400px;
+  background: radial-gradient(circle, #1A0F3C 0%, transparent 70%);
+  bottom: -100px; left: 30%;
+  animation-duration: 22s;
+  animation-delay: -14s;
+}
+.bg-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+  background-size: 60px 60px;
+  mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black, transparent);
+}
+@keyframes drift {
+  from { transform: translate(0, 0) scale(1); }
+  to   { transform: translate(40px, 60px) scale(1.15); }
+}
+
+/* ═══════════════════════════════════════════════
+   LAYOUT WRAPPER
+═══════════════════════════════════════════════ */
+.page-wrap {
+  position: relative;
+  z-index: 1;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 28px 80px;
+}
+
+/* ═══════════════════════════════════════════════
+   HEADER / HERO
+═══════════════════════════════════════════════ */
+header.hero {
+  padding: 48px 0 0;
+}
+
+.nav-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 60px;
+}
+
+.wordmark {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.wordmark-logo {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-weight: 600;
+  font-size: 26px;
+  letter-spacing: 0.04em;
+  background: var(--gold-grad);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.wordmark-badge {
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  border: 1px solid var(--glass-border);
+  padding: 3px 8px;
+  border-radius: 100px;
+}
+
+.corpus-stats {
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: right;
+  line-height: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.corpus-stats .stat-val {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-gold);
+}
+
+/* Hero headline */
+.hero-headline {
+  margin-bottom: 40px;
+}
+.hero-eyebrow {
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-gold);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.hero-eyebrow::before {
+  content: '';
+  display: block;
+  width: 28px;
+  height: 1px;
+  background: var(--gold-2);
+}
+h1.tagline {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-weight: 500;
+  font-size: clamp(32px, 5vw, 52px);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  max-width: 22ch;
+}
+h1.tagline em {
+  font-style: italic;
+  background: var(--gold-grad);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ═══════════════════════════════════════════════
+   SEARCH CARD — glassmorphism
+═══════════════════════════════════════════════ */
+.search-card {
+  background: rgba(19, 17, 26, 0.7);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-lg);
+  padding: 28px 28px 20px;
+  box-shadow: var(--shadow-card), var(--shadow-inset);
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+.search-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(212,168,67,0.4), transparent);
+}
+
+.search-row {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.search-input-wrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.search-input-wrap .search-icon {
+  position: absolute;
+  left: 14px;
+  color: var(--text-muted);
+  pointer-events: none;
+  font-size: 16px;
+  line-height: 1;
+}
+.search-row input[type="text"] {
+  width: 100%;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--hairline-2);
+  border-radius: var(--r-md);
+  padding: 14px 14px 14px 42px;
+  font-size: 16px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 400;
+  color: var(--text-primary);
+  transition: border-color 0.2s, box-shadow 0.2s;
+  outline: none;
+}
+.search-row input[type="text"]::placeholder {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+.search-row input[type="text"]:focus {
+  border-color: var(--gold-3);
+  box-shadow: 0 0 0 3px rgba(201,145,59,0.12);
+}
+
+.btn-primary {
+  background: var(--gold-grad);
+  color: #1A0F05;
+  border: none;
+  border-radius: var(--r-md);
+  padding: 0 28px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: 'Space Grotesk', sans-serif;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s, transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 4px 20px rgba(212,168,67,0.25);
+}
+.btn-primary:hover {
+  opacity: 0.92;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 28px rgba(212,168,67,0.35);
+}
+.btn-primary:active { transform: translateY(0); }
+
+/* — Separator line — */
+.search-divider {
+  height: 1px;
+  background: var(--hairline);
+  margin: 20px 0 16px;
+}
+
+/* — Mode tabs — */
+.mode-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 16px;
+  background: rgba(255,255,255,0.03);
+  border-radius: var(--r-sm);
+  padding: 3px;
+  width: fit-content;
+}
+.mode-tab {
+  background: none;
+  border: none;
+  padding: 7px 16px;
+  font-size: 12.5px;
+  font-weight: 500;
+  font-family: 'Space Grotesk', sans-serif;
+  color: var(--text-muted);
+  border-radius: calc(var(--r-sm) - 2px);
+  cursor: pointer;
+  transition: all 0.2s;
+  letter-spacing: 0.01em;
+}
+.mode-tab.active {
+  background: var(--surface-3);
+  color: var(--text-gold);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+}
+.mode-tab:hover:not(.active) { color: var(--text-secondary); }
+
+/* — Ranker chips — */
+.chip-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 0;
+}
+.chip-label {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-family: 'Space Mono', monospace;
+  margin-right: 4px;
+}
+.chip {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--hairline-2);
+  border-radius: 100px;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.18s;
+}
+.chip:hover { border-color: rgba(212,168,67,0.3); color: var(--text-gold); }
+.chip.active {
+  background: rgba(212,168,67,0.1);
+  border-color: rgba(212,168,67,0.4);
+  color: var(--text-gold);
+  box-shadow: 0 0 12px rgba(212,168,67,0.08);
+}
+
+/* — Positional / proximity inputs — */
+.field-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 4px;
+}
+.field-row input[type="text"] {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--hairline-2);
+  border-radius: var(--r-sm);
+  padding: 9px 12px;
+  font-size: 13px;
+  font-family: 'Space Mono', monospace;
+  color: var(--text-primary);
+  width: 140px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.field-row input[type="text"]:focus {
+  border-color: var(--gold-3);
+}
+.field-row label {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: 'Space Mono', monospace;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.k-input {
+  width: 52px !important;
+  text-align: center;
+}
+.toggle-order {
+  display: flex;
+  border: 1px solid var(--hairline-2);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+.toggle-order button {
+  border: none;
+  background: transparent;
+  padding: 8px 14px;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: 'Space Mono', monospace;
+  cursor: pointer;
+  transition: all 0.18s;
+}
+.toggle-order button.active {
+  background: rgba(212,168,67,0.12);
+  color: var(--text-gold);
+}
+
+/* ═══════════════════════════════════════════════
+   MAIN / RESULTS AREA
+═══════════════════════════════════════════════ */
+main {
+  padding-top: 32px;
+}
+
+.results-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--hairline);
+  margin-bottom: 4px;
+}
+.results-meta .rm-query {
+  color: var(--text-secondary);
+}
+.results-meta .rm-count {
+  color: var(--text-gold);
+  font-weight: 700;
+}
+.results-meta .rm-ranker {
+  background: rgba(212,168,67,0.08);
+  border: 1px solid rgba(212,168,67,0.2);
+  border-radius: 100px;
+  padding: 3px 10px;
+  color: var(--text-gold);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+
+.oov-note, .empty-note, .correction-note {
+  font-size: 12.5px;
+  padding: 14px 0;
+  font-family: 'Space Mono', monospace;
+  letter-spacing: 0.03em;
+}
+.oov-note { color: #C0392B; }
+.empty-note { color: var(--text-muted); }
+.correction-note { color: var(--text-secondary); }
+.correction-note b { color: var(--text-primary); }
+
+/* ═══════════════════════════════════════════════
+   RESULT ROW CARD
+═══════════════════════════════════════════════ */
+.result-row {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  gap: 18px;
+  align-items: start;
+  padding: 20px 20px;
+  border-radius: var(--r-md);
+  border: 1px solid transparent;
+  margin-bottom: 6px;
+  animation: rise 0.4s cubic-bezier(0.22,1,0.36,1) both;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s, transform 0.2s;
+  cursor: default;
+  position: relative;
+}
+.result-row::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-md);
+  background: var(--glass);
+  transition: opacity 0.2s;
+  opacity: 0;
+  pointer-events: none;  /* never block clicks on children */
+  z-index: 0;
+}
+.result-row:hover {
+  border-color: var(--hairline-2);
+  background: rgba(255,255,255,0.015);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+  transform: translateY(-1px);
+}
+.result-row:hover::before { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) { .result-row { animation: none; } }
+.result-row:nth-child(n) { animation-delay: calc(var(--i, 0) * 30ms); }
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* — Rank number — */
+.rank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-sm);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--hairline);
+  font-family: 'Space Mono', monospace;
+  font-size: 13px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  margin-top: 2px;
+  transition: all 0.2s;
+}
+.result-row:first-child .rank,
+.result-row[style*="--i: 0"] .rank {
+  background: rgba(212,168,67,0.1);
+  border-color: rgba(212,168,67,0.3);
+  color: var(--text-gold);
+}
+
+/* — Color swatch dot — */
+.swatch-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.2);
+  margin-right: 7px;
+  vertical-align: middle;
+  position: relative;
+  top: -1px;
+  flex-shrink: 0;
+  box-shadow: 0 0 6px currentColor;
+}
+
+.result-main .meta-line {
+  display: flex;
+  align-items: center;
+  font-family: 'Space Mono', monospace;
+  font-size: 10.5px;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+.result-main .meta-line .docid { color: var(--gold-3); margin-right: 6px; }
+.result-main .meta-line .sep { margin: 0 6px; opacity: 0.4; }
+
+.result-title {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin: 0 0 8px;
+  line-height: 1.3;
+  transition: color 0.2s;
+}
+.result-row:hover .result-title { color: #fff; }
+
+.inspect-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: 1px solid var(--hairline);
+  border-radius: 100px;
+  padding: 4px 12px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: 'Space Grotesk', sans-serif;
+  cursor: pointer;
+  transition: all 0.18s;
+  letter-spacing: 0.03em;
+}
+.inspect-toggle:hover {
+  border-color: rgba(212,168,67,0.35);
+  color: var(--text-gold);
+  background: rgba(212,168,67,0.05);
+}
+
+/* — Score column — */
+.score-col {
+  text-align: right;
+  min-width: 96px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  padding-top: 4px;
+}
+.score-num {
+  font-family: 'Space Mono', monospace;
+  font-size: 16px;
+  color: var(--text-primary);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  background: var(--gold-grad);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.score-bar-track {
+  width: 80px;
+  height: 3px;
+  background: rgba(255,255,255,0.07);
+  border-radius: 100px;
+  overflow: visible;
+  position: relative;
+}
+.score-bar-fill {
+  height: 100%;
+  border-radius: 100px;
+  background: var(--gold-grad);
+  position: relative;
+  transition: width 0.6s cubic-bezier(0.22,1,0.36,1);
+  box-shadow: 0 0 8px rgba(212,168,67,0.5);
+}
+
+/* — Inspect / details panel — */
+.details-panel {
+  grid-column: 1 / -1;
+  margin-top: 12px;
+  padding: 16px 18px;
+  background: rgba(255,255,255,0.025);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  font-family: 'Space Mono', monospace;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  animation: rise 0.25s ease both;
+}
+.details-panel table { border-collapse: collapse; width: 100%; }
+.details-panel th, .details-panel td {
+  text-align: left;
+  padding: 5px 12px 5px 0;
+  font-weight: 400;
+}
+.details-panel th {
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--hairline);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding-bottom: 8px;
+}
+.details-panel td { color: var(--text-secondary); }
+.details-panel td:first-child { color: var(--text-gold); }
+
+/* — Position ruler — */
+.ruler {
+  display: flex;
+  gap: 2px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.ruler .tick {
+  width: 5px;
+  height: 12px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 1px;
+  transition: height 0.2s;
+}
+.ruler .tick.hit {
+  background: var(--gold-2);
+  height: 18px;
+  box-shadow: 0 0 6px rgba(212,168,67,0.5);
+}
+.ruler .tick.hit.second {
+  background: var(--accent-teal);
+  box-shadow: 0 0 6px rgba(46,204,138,0.5);
+}
+
+/* ═══════════════════════════════════════════════
+   COMPARE TABLE
+═══════════════════════════════════════════════ */
+.compare-wrap { overflow-x: auto; margin-top: 6px; }
+table.compare {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+table.compare th {
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  text-align: left;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--hairline-2);
+  padding: 8px 12px 8px 0;
+}
+table.compare td {
+  padding: 10px 12px 10px 0;
+  border-bottom: 1px solid var(--hairline);
+  vertical-align: top;
+}
+table.compare .c-docid {
+  font-family: 'Space Mono', monospace;
+  color: var(--gold-3);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+table.compare .c-score {
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+table.compare .c-title {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 15px;
+  color: var(--text-primary);
+}
+
+/* — Compare toggle button — */
+.compare-toggle-row { margin: 24px 0 8px; }
+.link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(212,168,67,0.06);
+  border: 1px solid rgba(212,168,67,0.2);
+  border-radius: 100px;
+  padding: 7px 18px;
+  color: var(--text-gold);
+  font-size: 12.5px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s;
+  letter-spacing: 0.02em;
+}
+.link-btn:hover {
+  background: rgba(212,168,67,0.12);
+  border-color: rgba(212,168,67,0.4);
+  box-shadow: 0 0 20px rgba(212,168,67,0.1);
+}
+
+/* ═══════════════════════════════════════════════
+   ABOUT / INFO PANEL
+═══════════════════════════════════════════════ */
+.about-panel {
+  margin-top: 56px;
+  padding: 32px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  position: relative;
+  overflow: hidden;
+}
+.about-panel::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(212,168,67,0.3), transparent);
+}
+.about-panel-eyebrow {
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+.about-panel h2 {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 24px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin: 0 0 16px;
+}
+.about-panel p {
+  margin: 0 0 14px;
+  max-width: 72ch;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.75;
+}
+.about-panel p:last-child { margin-bottom: 0; }
+.about-panel code {
+  font-family: 'Space Mono', monospace;
+  background: rgba(212,168,67,0.08);
+  color: var(--text-gold);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  border: 1px solid rgba(212,168,67,0.15);
+}
+.about-panel b { color: var(--text-primary); font-weight: 600; }
+
+/* — Tech pills row — */
+.algo-pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+.algo-pill {
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border: 1px solid var(--hairline-2);
+  border-radius: 100px;
+  padding: 4px 12px;
+}
+
+/* ═══════════════════════════════════════════════
+   FOOTER
+═══════════════════════════════════════════════ */
+footer {
+  padding: 32px 0 16px;
+  font-family: 'Space Mono', monospace;
+  font-size: 10.5px;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--hairline);
+  margin-top: 48px;
+}
+.footer-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--gold-3);
+  margin: 0 8px;
+  vertical-align: middle;
+  animation: pulse-dot 2.5s ease-in-out infinite;
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(201,145,59,0.4); }
+  50% { opacity: 0.7; box-shadow: 0 0 0 5px rgba(201,145,59,0); }
+}
+
+/* ═══════════════════════════════════════════════
+   UTILITY / MONO
+═══════════════════════════════════════════════ */
+.mono { font-family: 'Space Mono', monospace; }
+a { color: var(--text-gold); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+button:focus-visible,
+input:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--gold-2);
+  outline-offset: 2px;
+}
+
+/* ═══════════════════════════════════════════════
+   RESPONSIVE
+═══════════════════════════════════════════════ */
+@media (max-width: 640px) {
+  .page-wrap { padding: 0 16px 60px; }
+  .result-row { grid-template-columns: 32px 1fr; }
+  .score-col { grid-column: 2; text-align: left; }
+  .nav-bar { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .corpus-stats { text-align: left; align-items: flex-start; }
+  h1.tagline { font-size: clamp(28px, 8vw, 40px); }
+  footer { flex-direction: column; gap: 8px; text-align: center; }
+}
+
+/* ═══════════════════════════════════════════════
+   SCROLLBAR
+═══════════════════════════════════════════════ */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--void); }
+::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--gold-4); }
+
+/* ═══════════════════════════════════════════════
+   NOVELTY 5 — SNIPPETS (Google-style highlighted context)
+═══════════════════════════════════════════════ */
+.snippet {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  margin: 4px 0 8px;
+  max-width: 64ch;
+}
+.snippet mark.hl {
+  background: rgba(212,168,67,0.22);
+  color: var(--text-gold);
+  padding: 0 2px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+
+/* ═══════════════════════════════════════════════
+   NOVELTY 6 — RANK-SHIFT BADGES (positional vs plain VSM)
+═══════════════════════════════════════════════ */
+.rank-shift {
+  display: inline-flex;
+  align-items: center;
+  font-family: 'Space Mono', monospace;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 100px;
+  margin-left: 8px;
+  letter-spacing: 0.02em;
+  cursor: help;
+}
+.rank-shift.up   { background: rgba(46,204,138,0.14); color: var(--accent-teal); }
+.rank-shift.down { background: rgba(192,57,43,0.14);  color: var(--accent-red); }
+.rank-shift.same { background: rgba(255,255,255,0.06); color: var(--text-muted); }
+.rank-shift.new  { background: rgba(212,168,67,0.16);  color: var(--text-gold); }
+
+/* ═══════════════════════════════════════════════
+   NOVELTY 7 — NDCG relevance-judging tab
+═══════════════════════════════════════════════ */
+#ndcg-controls { color: var(--text-secondary); font-size: 13px; line-height: 1.7; max-width: 68ch; padding: 4px 0 8px; }
+.ndcg-judge-row {
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  gap: 14px;
+  align-items: start;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--hairline);
+}
+.ndcg-judge-row .rank { color: var(--text-muted); font-family: 'Space Mono', monospace; font-size: 12px; padding-top: 4px; }
+.grade-group {
+  display: inline-flex;
+  border: 1px solid var(--glass-border);
+  border-radius: 100px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.grade-btn {
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  padding: 6px 11px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-right: 1px solid var(--glass-border);
+}
+.grade-btn:last-child { border-right: none; }
+.grade-btn.active { background: var(--gold-grad); color: var(--void); font-weight: 700; }
+.grade-btn:hover:not(.active) { background: rgba(255,255,255,0.04); }
+.ndcg-summary-table { width: 100%; border-collapse: collapse; margin-top: 18px; font-size: 12.5px; }
+.ndcg-summary-table th {
+  font-family: 'Space Mono', monospace; font-size: 10px; text-transform: uppercase;
+  letter-spacing: 0.08em; text-align: left; color: var(--text-muted);
+  border-bottom: 1px solid var(--hairline-2); padding: 8px 12px 8px 0;
+}
+.ndcg-summary-table td { padding: 10px 12px 10px 0; border-bottom: 1px solid var(--hairline); vertical-align: middle; }
+.ndcg-bar-track { background: rgba(255,255,255,0.05); border-radius: 100px; height: 8px; width: 160px; overflow: hidden; }
+.ndcg-bar-fill { height: 100%; background: var(--gold-grad); border-radius: 100px; }
+.ndcg-note { font-size: 11.5px; color: var(--text-muted); margin: 12px 0 4px; line-height: 1.65; max-width: 68ch; }
+.ndcg-section-title {
+  font-family: 'Space Mono', monospace; font-size: 10px; text-transform: uppercase;
+  letter-spacing: 0.1em; color: var(--text-gold); margin: 22px 0 4px;
+}
+
+/* ═══════════════════════════════════════════════
+   NOVELTY 8 — Custom SMART-notation VSM builder
+═══════════════════════════════════════════════ */
+.custom-vsm-panel {
+  margin-top: 14px; padding: 16px; background: rgba(255,255,255,0.02);
+  border: 1px solid var(--hairline); border-radius: var(--r-md);
+}
+.custom-vsm-row { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 10px; }
+.custom-vsm-field { display: flex; flex-direction: column; gap: 4px; }
+.custom-vsm-field label {
+  font-family: 'Space Mono', monospace; font-size: 9.5px; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--text-muted);
+}
+.custom-vsm-field select {
+  background: var(--surface-2); color: var(--text-primary); border: 1px solid var(--glass-border);
+  border-radius: 6px; padding: 5px 8px; font-family: 'Space Mono', monospace; font-size: 12px;
+}
+.custom-vsm-notation {
+  font-family: 'Space Mono', monospace; font-size: 13px; color: var(--text-gold);
+  margin: 4px 0 12px;
+}
+.custom-vsm-toggle-ref {
+  font-family: 'Space Mono', monospace; font-size: 10.5px; color: var(--text-muted);
+  background: none; border: none; cursor: pointer; text-decoration: underline; padding: 0;
+}
+table.tfidf-ref { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 10px; }
+table.tfidf-ref th {
+  font-family: 'Space Mono', monospace; font-size: 9.5px; text-transform: uppercase;
+  color: var(--text-muted); text-align: left; border-bottom: 1px solid var(--hairline-2); padding: 6px 8px 6px 0;
+}
+table.tfidf-ref td { padding: 5px 8px 5px 0; border-bottom: 1px solid var(--hairline); color: var(--text-secondary); vertical-align: top; }
+table.tfidf-ref td b { color: var(--text-gold); font-family: 'Space Mono', monospace; }
+
+</style>
+</head>
+<body>
+
+<!-- Animated background canvas -->
+<div class="bg-canvas" aria-hidden="true">
+  <div class="bg-grid"></div>
+  <div class="bg-orb bg-orb-1"></div>
+  <div class="bg-orb bg-orb-2"></div>
+  <div class="bg-orb bg-orb-3"></div>
+</div>
+
+<div class="page-wrap">
+
+<header class="hero">
+  <nav class="nav-bar">
+    <div class="wordmark">
+      <span class="wordmark-logo">Swatchbook</span>
+      <span class="wordmark-badge">IR Lab &middot; CSD358</span>
+    </div>
+    <div class="corpus-stats">
+      <div><span class="stat-val" id="stat-docs">&mdash;</span>&nbsp;products indexed</div>
+      <div><span class="stat-val" id="stat-terms">&mdash;</span>&nbsp;dictionary terms</div>
+    </div>
+  </nav>
+
+  <div class="hero-headline">
+    <div class="hero-eyebrow">Clothing Information Retrieval</div>
+    <h1 class="tagline">Search the catalog,&nbsp;<em>see the&nbsp;math.</em></h1>
+  </div>
+
+  <div class="search-card">
+    <form id="search-form">
+      <div class="search-row" id="freetext-search-row">
+        <div class="search-input-wrap">
+          <span class="search-icon" aria-hidden="true">&#x2315;</span>
+          <input type="text" id="query-input" placeholder="Search — e.g. cotton shirt, winter jacket, high waist leggings" autocomplete="off" spellcheck="false">
+        </div>
+        <button class="btn-primary" type="submit" id="search-btn">Search</button>
+      </div>
+
+      <div class="search-divider"></div>
+
+      <div class="mode-tabs">
+        <button type="button" class="mode-tab active" id="mode-freetext">Free-text ranking</button>
+        <button type="button" class="mode-tab" id="mode-positional">Phrase &amp; proximity</button>
+        <button type="button" class="mode-tab" id="mode-ndcg">Relevance &amp; NDCG</button>
+      </div>
+
+      <div id="freetext-controls">
+        <div class="chip-row">
+          <span class="chip-label">rank by</span>
+          <button type="button" class="chip active" data-ranker="vsm">VSM &middot; lnc.ltc</button>
+          <button type="button" class="chip" data-ranker="bm25">BM25</button>
+          <button type="button" class="chip" data-ranker="sdm">SDM &middot; positional</button>
+          <button type="button" class="chip" data-ranker="fielded">Title-boosted</button>
+          <button type="button" class="chip" data-ranker="custom">Custom SMART &#9662;</button>
+        </div>
+        <div id="custom-vsm-panel" class="custom-vsm-panel" style="display:none;">
+          <div class="custom-vsm-row">
+            <div class="custom-vsm-field">
+              <label>Document &middot; term freq</label>
+              <select id="cv-doc-tf"></select>
+            </div>
+            <div class="custom-vsm-field">
+              <label>Document &middot; doc freq</label>
+              <select id="cv-doc-df"></select>
+            </div>
+            <div class="custom-vsm-field">
+              <label>Document &middot; norm</label>
+              <select id="cv-doc-norm"></select>
+            </div>
+          </div>
+          <div class="custom-vsm-row">
+            <div class="custom-vsm-field">
+              <label>Query &middot; term freq</label>
+              <select id="cv-q-tf"></select>
+            </div>
+            <div class="custom-vsm-field">
+              <label>Query &middot; doc freq</label>
+              <select id="cv-q-df"></select>
+            </div>
+            <div class="custom-vsm-field">
+              <label>Query &middot; norm</label>
+              <select id="cv-q-norm"></select>
+            </div>
+          </div>
+          <div class="custom-vsm-notation">Notation: <span id="cv-notation-doc">lnc</span>.<span id="cv-notation-q">ltc</span> &mdash; the required scheme is the default (<code>lnc.ltc</code>); change any dropdown to build your own.</div>
+          <button type="button" class="custom-vsm-toggle-ref" id="cv-toggle-ref">show tf&middot;df&middot;norm variant reference &#9662;</button>
+          <div id="cv-ref-table" style="display:none;"></div>
+        </div>
+      </div>
+
+      <div id="positional-controls" style="display:none; flex-direction:column; align-items:flex-start;">
+        <div class="chip-row" style="margin-top:0;">
+          <button type="button" class="chip active" id="posSub-phrase">Exact phrase</button>
+          <button type="button" class="chip" id="posSub-proximity">Proximity (WITHIN/k)</button>
+        </div>
+        <div id="positional-fields" style="margin-top:12px; width:100%;"></div>
+      </div>
+
+      <div id="ndcg-controls" style="display:none;">
+        Runs your query through every ranker at once, top&#8209;10 each, and pools the results into one judging list below. Grade each product&rsquo;s relevance to the query (0&ndash;3), and NDCG@10 recomputes live for every ranker &mdash; no relevance labels are hard-coded, they come entirely from your own grading.
+      </div>
+    </form>
+  </div>
+</header>
+
+<main>
+  <div id="results-meta" class="results-meta" style="display:none;"></div>
+  <div id="results"></div>
+  <div id="ndcg-panel" style="display:none;"></div>
+
+  <div class="compare-toggle-row">
+    <button id="compare-btn" class="link-btn" type="button" style="display:none;">Compare all rankers &rarr;</button>
+  </div>
+  <div id="compare-panel" style="display:none;"></div>
+
+  <div class="about-panel">
+    <div class="about-panel-eyebrow">Under the hood</div>
+    <h2>What&rsquo;s actually happening here</h2>
+    <p>Every product description is tokenized, stemmed (a from-scratch Porter stemmer), and stripped of stop-words, then indexed twice: a plain inverted index of term frequencies for the required <code>lnc.ltc</code> vector-space ranking, and a positional index recording exactly where each stemmed token sits, powering the phrase and proximity search on the second tab.</p>
+    <p>The other three ranking options are research-grounded extensions built on top of the same indexes: <b>BM25</b> (Robertson &amp; Zaragoza, 2009) for comparison against the required lnc.ltc weighting; the <b>Sequential Dependence Model</b> (Metzler &amp; Croft, SIGIR 2005), which folds ordered/unordered positional evidence directly into the ranking score rather than only using it for phrase filtering; and a <b>title-boosted</b> ranker inspired by BM25F (Robertson, Zaragoza &amp; Taylor, 2004), which rewards a query term appearing in a product&rsquo;s title or category over the same term buried in body copy. Click &ldquo;inspect score&rdquo; on any result to see the term-level arithmetic.</p>
+    <p>Everything runs client-side in this page &mdash; the whole engine (indexing, all four rankers, phrase/proximity search, and a Levenshtein-distance typo-tolerant fallback) is under 500 lines of plain JavaScript with no server and no dependencies, so this file can be opened locally or hosted anywhere static files are served.</p>
+    <p><b>Beyond the core retrieval pipeline, the interface adds several layers of explanation in sequence:</b> each result now includes a Google-style <b>snippet</b> &mdash; the highest query-term-density window of the product description, with matches <mark class="hl" style="background:rgba(212,168,67,0.22); color:var(--text-gold); padding:0 2px; border-radius:3px;">highlighted</mark> inline. Next, the phrase and proximity views attach a <b>rank-shift badge</b> (&#9650;/&#9660;) that shows how much a document moved relative to plain VSM for the same query, giving a direct visual read on when positional evidence changes ranking and when a document appears only because of positional matches (marked as a gold <b>NEW</b> result). After that, the <b>Relevance &amp; NDCG</b> tab lets you grade each candidate document on a 0&ndash;3 scale and recomputes NDCG@10 live for every ranker, so the evaluation is driven by your judgments rather than any hard-coded labels. Finally, the ranker controls include a <b>Custom SMART-notation VSM builder</b>: six dropdowns let you compose any <code>tf.df.norm</code> weighting scheme (natural/log/augmented/boolean/log-average term frequency &times; no-idf/idf/prob-idf &times; none/cosine/pivoted-unique/byte-size normalization, independently for documents and queries) so you can explore schemes beyond the required <code>lnc.ltc</code> and see how they re-rank the same corpus.</p>
+    <div class="algo-pills">
+      <span class="algo-pill">VSM &middot; lnc.ltc</span>
+      <span class="algo-pill">BM25</span>
+      <span class="algo-pill">SDM</span>
+      <span class="algo-pill">BM25F &middot; Fielded</span>
+      <span class="algo-pill">Positional Index</span>
+      <span class="algo-pill">Porter Stemmer</span>
+      <span class="algo-pill">Levenshtein Fuzzy</span>
+      <span class="algo-pill">Result Snippets</span>
+      <span class="algo-pill">Rank-shift &Delta;</span>
+      <span class="algo-pill">NDCG</span>
+      <span class="algo-pill">SMART VSM Builder</span>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <span>CSD358 &middot; Information Retrieval &middot; Assignment 1</span>
+  <span><span class="footer-dot"></span>runs entirely client-side &middot; no data leaves this page</span>
+</footer>
+
+</div><!-- /.page-wrap -->
+
+<script>
+const CORPUS_DATA = [{"docid": "D001", "category": "T-Shirt", "title": "Men's Cotton Crew Neck T-Shirt - Black", "text": "Men's Cotton Crew Neck T-Shirt - Black. Made from 100% cotton, this t-shirt is designed for everyday Indian wear. It features breathable fabric, machine washable, and colourfast finish. The black colour works well for casual, office, travel, or festive styling depending on the garment. Available in size S and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D002", "category": "Shirt", "title": "Men's Checked Cotton Shirt - Black", "text": "Men's Checked Cotton Shirt - Black. Made from linen blend, this shirt is designed for everyday Indian wear. It features button closure, slim fit, and skin-friendly fabric. The black colour works well for casual, office, travel, or festive styling depending on the garment. Available in size M and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D003", "category": "Jeans", "title": "Men's Regular Fit Denim Jeans - Grey", "text": "Men's Regular Fit Denim Jeans - Grey. Made from comfort stretch denim, this jeans is designed for everyday Indian wear. It features zip fly, durable stitching, and easy-care construction. The grey colour works well for casual, office, travel, or festive styling depending on the garment. Available in size L and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D004", "category": "Kurta", "title": "Men's Regular Fit Kurta - Pink", "text": "Men's Regular Fit Kurta - Pink. Made from linen blend, this kurta is designed for everyday Indian wear. It features breathable fabric, comfortable fit, and everyday comfort. The pink colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D005", "category": "Saree", "title": "Women's Printed Daily Wear Saree - Blue", "text": "Women's Printed Daily Wear Saree - Blue. Made from cotton, this saree is designed for everyday Indian wear. It features festive wear, printed border, and durable stitching. The blue colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XXL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D006", "category": "Dress", "title": "Women's Solid Midi Dress - Green", "text": "Women's Solid Midi Dress - Green. Made from cotton blend, this dress is designed for everyday Indian wear. It features comfortable fit, short sleeves, and minimal shrinkage. The green colour works well for casual, office, travel, or festive styling depending on the garment. Available in size S and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D007", "category": "Hoodie", "title": "Women's Oversized Fleece Hoodie - Black", "text": "Women's Oversized Fleece Hoodie - Black. Made from poly cotton, this hoodie is designed for everyday Indian wear. It features kangaroo pocket, warm fabric, and colourfast finish. The black colour works well for casual, office, travel, or festive styling depending on the garment. Available in size M and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D008", "category": "Jacket", "title": "Women's Casual Puffer Jacket - Olive", "text": "Women's Casual Puffer Jacket - Olive. Made from quilted polyester, this jacket is designed for everyday Indian wear. It features lightweight, winter wear, and skin-friendly fabric. The olive colour works well for casual, office, travel, or festive styling depending on the garment. Available in size L and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D009", "category": "Leggings", "title": "Women's High Waist Stretch Leggings - Olive Green", "text": "Women's High Waist Stretch Leggings - Olive Green. Made from cotton stretch, this leggings is designed for everyday Indian wear. It features comfortable waistband, high waist, and easy-care construction. The olive green colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D010", "category": "Sweatshirt", "title": "Women's Fleece Sweatshirt - Black", "text": "Women's Fleece Sweatshirt - Black. Made from cotton blend, this sweatshirt is designed for everyday Indian wear. It features winter wear, warm fabric, and everyday comfort. The black colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XXL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D011", "category": "T-Shirt", "title": "Men's Oversized Graphic T-Shirt - Mustard", "text": "Men's Oversized Graphic T-Shirt - Mustard. Made from cotton blend, this t-shirt is designed for everyday Indian wear. It features breathable fabric, machine washable, and durable stitching. The mustard colour works well for casual, office, travel, or festive styling depending on the garment. Available in size S and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D012", "category": "Shirt", "title": "Women's Striped Casual Shirt - Blue", "text": "Women's Striped Casual Shirt - Blue. Made from viscose blend, this shirt is designed for everyday Indian wear. It features button closure, slim fit, and minimal shrinkage. The blue colour works well for casual, office, travel, or festive styling depending on the garment. Available in size M and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D013", "category": "Jeans", "title": "Men's Slim Fit Stretch Jeans - Grey", "text": "Men's Slim Fit Stretch Jeans - Grey. Made from stretch denim, this jeans is designed for everyday Indian wear. It features zip fly, durable stitching, and colourfast finish. The grey colour works well for casual, office, travel, or festive styling depending on the garment. Available in size L and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D014", "category": "Kurta", "title": "Women's Printed Straight Kurta - Beige", "text": "Women's Printed Straight Kurta - Beige. Made from cotton slub, this kurta is designed for everyday Indian wear. It features breathable fabric, comfortable fit, and skin-friendly fabric. The beige colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D015", "category": "Saree", "title": "Women's Cotton Handloom Saree - Red", "text": "Women's Cotton Handloom Saree - Red. Made from chiffon, this saree is designed for everyday Indian wear. It features festive wear, printed border, and easy-care construction. The red colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XXL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D016", "category": "Dress", "title": "Women's Casual Fit Dress - Floral Pink", "text": "Women's Casual Fit Dress - Floral Pink. Made from viscose, this dress is designed for everyday Indian wear. It features comfortable fit, short sleeves, and everyday comfort. The floral pink colour works well for casual, office, travel, or festive styling depending on the garment. Available in size S and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D017", "category": "Hoodie", "title": "Unisex Fleece Pullover Hoodie - Navy Blue", "text": "Unisex Fleece Pullover Hoodie - Navy Blue. Made from fleece, this hoodie is designed for everyday Indian wear. It features kangaroo pocket, warm fabric, and durable stitching. The navy blue colour works well for casual, office, travel, or festive styling depending on the garment. Available in size M and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D018", "category": "Jacket", "title": "Women's Quilted Winter Jacket - Beige", "text": "Women's Quilted Winter Jacket - Beige. Made from denim, this jacket is designed for everyday Indian wear. It features lightweight, winter wear, and minimal shrinkage. The beige colour works well for casual, office, travel, or festive styling depending on the garment. Available in size L and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D019", "category": "Leggings", "title": "Women's Printed Active Leggings - Black", "text": "Women's Printed Active Leggings - Black. Made from nylon spandex, this leggings is designed for everyday Indian wear. It features comfortable waistband, high waist, and colourfast finish. The black colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D020", "category": "Sweatshirt", "title": "Men's Regular Fit Sweatshirt - Navy Blue", "text": "Men's Regular Fit Sweatshirt - Navy Blue. Made from poly cotton, this sweatshirt is designed for everyday Indian wear. It features winter wear, warm fabric, and skin-friendly fabric. The navy blue colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XXL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D021", "category": "T-Shirt", "title": "Men's Cotton Crew Neck T-Shirt - Sky Blue", "text": "Men's Cotton Crew Neck T-Shirt - Sky Blue. Made from 100% cotton, this t-shirt is designed for everyday Indian wear. It features breathable fabric, machine washable, and easy-care construction. The sky blue colour works well for casual, office, travel, or festive styling depending on the garment. Available in size S and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D022", "category": "Shirt", "title": "Men's Checked Cotton Shirt - White", "text": "Men's Checked Cotton Shirt - White. Made from linen blend, this shirt is designed for everyday Indian wear. It features button closure, slim fit, and everyday comfort. The white colour works well for casual, office, travel, or festive styling depending on the garment. Available in size M and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D023", "category": "Jeans", "title": "Men's Regular Fit Denim Jeans - Grey", "text": "Men's Regular Fit Denim Jeans - Grey. Made from cotton denim, this jeans is designed for everyday Indian wear. It features zip fly, durable stitching, and durable stitching. The grey colour works well for casual, office, travel, or festive styling depending on the garment. Available in size L and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D024", "category": "Kurta", "title": "Men's Regular Fit Kurta - Teal", "text": "Men's Regular Fit Kurta - Teal. Made from linen blend, this kurta is designed for everyday Indian wear. It features breathable fabric, comfortable fit, and minimal shrinkage. The teal colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D025", "category": "Saree", "title": "Women's Printed Daily Wear Saree - Maroon", "text": "Women's Printed Daily Wear Saree - Maroon. Made from cotton, this saree is designed for everyday Indian wear. It features festive wear, printed border, and colourfast finish. The maroon colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XXL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D026", "category": "Dress", "title": "Women's Solid Midi Dress - Navy Blue", "text": "Women's Solid Midi Dress - Navy Blue. Made from cotton blend, this dress is designed for everyday Indian wear. It features comfortable fit, short sleeves, and skin-friendly fabric. The navy blue colour works well for casual, office, travel, or festive styling depending on the garment. Available in size S and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D027", "category": "Hoodie", "title": "Women's Oversized Fleece Hoodie - Wine", "text": "Women's Oversized Fleece Hoodie - Wine. Made from poly cotton, this hoodie is designed for everyday Indian wear. It features kangaroo pocket, warm fabric, and easy-care construction. The wine colour works well for casual, office, travel, or festive styling depending on the garment. Available in size M and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D028", "category": "Jacket", "title": "Women's Casual Puffer Jacket - Black", "text": "Women's Casual Puffer Jacket - Black. Made from quilted polyester, this jacket is designed for everyday Indian wear. It features lightweight, winter wear, and everyday comfort. The black colour works well for casual, office, travel, or festive styling depending on the garment. Available in size L and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D029", "category": "Leggings", "title": "Women's High Waist Stretch Leggings - Grey", "text": "Women's High Waist Stretch Leggings - Grey. Made from cotton stretch, this leggings is designed for everyday Indian wear. It features comfortable waistband, high waist, and durable stitching. The grey colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D030", "category": "Sweatshirt", "title": "Women's Fleece Sweatshirt - Maroon", "text": "Women's Fleece Sweatshirt - Maroon. Made from cotton blend, this sweatshirt is designed for everyday Indian wear. It features winter wear, warm fabric, and minimal shrinkage. The maroon colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XXL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D031", "category": "T-Shirt", "title": "Men's Oversized Graphic T-Shirt - Olive Green", "text": "Men's Oversized Graphic T-Shirt - Olive Green. Made from cotton blend, this t-shirt is designed for everyday Indian wear. It features breathable fabric, machine washable, and colourfast finish. The olive green colour works well for casual, office, travel, or festive styling depending on the garment. Available in size S and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D032", "category": "Shirt", "title": "Women's Striped Casual Shirt - Light Pink", "text": "Women's Striped Casual Shirt - Light Pink. Made from viscose blend, this shirt is designed for everyday Indian wear. It features button closure, slim fit, and skin-friendly fabric. The light pink colour works well for casual, office, travel, or festive styling depending on the garment. Available in size M and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D033", "category": "Jeans", "title": "Men's Slim Fit Stretch Jeans - Grey", "text": "Men's Slim Fit Stretch Jeans - Grey. Made from comfort stretch denim, this jeans is designed for everyday Indian wear. It features zip fly, durable stitching, and easy-care construction. The grey colour works well for casual, office, travel, or festive styling depending on the garment. Available in size L and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D034", "category": "Kurta", "title": "Women's Printed Straight Kurta - Maroon", "text": "Women's Printed Straight Kurta - Maroon. Made from cotton slub, this kurta is designed for everyday Indian wear. It features breathable fabric, comfortable fit, and everyday comfort. The maroon colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D035", "category": "Saree", "title": "Women's Cotton Handloom Saree - Yellow", "text": "Women's Cotton Handloom Saree - Yellow. Made from chiffon, this saree is designed for everyday Indian wear. It features festive wear, printed border, and durable stitching. The yellow colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XXL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D036", "category": "Dress", "title": "Women's Casual Fit Dress - Black", "text": "Women's Casual Fit Dress - Black. Made from viscose, this dress is designed for everyday Indian wear. It features comfortable fit, short sleeves, and minimal shrinkage. The black colour works well for casual, office, travel, or festive styling depending on the garment. Available in size S and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D037", "category": "Hoodie", "title": "Unisex Fleece Pullover Hoodie - Black", "text": "Unisex Fleece Pullover Hoodie - Black. Made from fleece, this hoodie is designed for everyday Indian wear. It features kangaroo pocket, warm fabric, and colourfast finish. The black colour works well for casual, office, travel, or festive styling depending on the garment. Available in size M and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D038", "category": "Jacket", "title": "Women's Quilted Winter Jacket - Olive", "text": "Women's Quilted Winter Jacket - Olive. Made from denim, this jacket is designed for everyday Indian wear. It features lightweight, winter wear, and skin-friendly fabric. The olive colour works well for casual, office, travel, or festive styling depending on the garment. Available in size L and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D039", "category": "Leggings", "title": "Women's Printed Active Leggings - Olive Green", "text": "Women's Printed Active Leggings - Olive Green. Made from nylon spandex, this leggings is designed for everyday Indian wear. It features comfortable waistband, high waist, and easy-care construction. The olive green colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D040", "category": "Sweatshirt", "title": "Men's Regular Fit Sweatshirt - Black", "text": "Men's Regular Fit Sweatshirt - Black. Made from poly cotton, this sweatshirt is designed for everyday Indian wear. It features winter wear, warm fabric, and everyday comfort. The black colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XXL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D041", "category": "T-Shirt", "title": "Men's Cotton Crew Neck T-Shirt - Maroon", "text": "Men's Cotton Crew Neck T-Shirt - Maroon. Made from 100% cotton, this t-shirt is designed for everyday Indian wear. It features breathable fabric, machine washable, and durable stitching. The maroon colour works well for casual, office, travel, or festive styling depending on the garment. Available in size S and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D042", "category": "Shirt", "title": "Men's Checked Cotton Shirt - Maroon", "text": "Men's Checked Cotton Shirt - Maroon. Made from linen blend, this shirt is designed for everyday Indian wear. It features button closure, slim fit, and minimal shrinkage. The maroon colour works well for casual, office, travel, or festive styling depending on the garment. Available in size M and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D043", "category": "Jeans", "title": "Men's Regular Fit Denim Jeans - Grey", "text": "Men's Regular Fit Denim Jeans - Grey. Made from stretch denim, this jeans is designed for everyday Indian wear. It features zip fly, durable stitching, and colourfast finish. The grey colour works well for casual, office, travel, or festive styling depending on the garment. Available in size L and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D044", "category": "Kurta", "title": "Men's Regular Fit Kurta - Navy Blue", "text": "Men's Regular Fit Kurta - Navy Blue. Made from linen blend, this kurta is designed for everyday Indian wear. It features breathable fabric, comfortable fit, and skin-friendly fabric. The navy blue colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D045", "category": "Saree", "title": "Women's Printed Daily Wear Saree - Purple", "text": "Women's Printed Daily Wear Saree - Purple. Made from cotton, this saree is designed for everyday Indian wear. It features festive wear, printed border, and easy-care construction. The purple colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XXL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D046", "category": "Dress", "title": "Women's Solid Midi Dress - Lavender", "text": "Women's Solid Midi Dress - Lavender. Made from cotton blend, this dress is designed for everyday Indian wear. It features comfortable fit, short sleeves, and everyday comfort. The lavender colour works well for casual, office, travel, or festive styling depending on the garment. Available in size S and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D047", "category": "Hoodie", "title": "Women's Oversized Fleece Hoodie - Navy Blue", "text": "Women's Oversized Fleece Hoodie - Navy Blue. Made from poly cotton, this hoodie is designed for everyday Indian wear. It features kangaroo pocket, warm fabric, and durable stitching. The navy blue colour works well for casual, office, travel, or festive styling depending on the garment. Available in size M and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D048", "category": "Jacket", "title": "Women's Casual Puffer Jacket - Beige", "text": "Women's Casual Puffer Jacket - Beige. Made from quilted polyester, this jacket is designed for everyday Indian wear. It features lightweight, winter wear, and minimal shrinkage. The beige colour works well for casual, office, travel, or festive styling depending on the garment. Available in size L and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D049", "category": "Leggings", "title": "Women's High Waist Stretch Leggings - Black", "text": "Women's High Waist Stretch Leggings - Black. Made from cotton stretch, this leggings is designed for everyday Indian wear. It features comfortable waistband, high waist, and colourfast finish. The black colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D050", "category": "Sweatshirt", "title": "Women's Fleece Sweatshirt - Navy Blue", "text": "Women's Fleece Sweatshirt - Navy Blue. Made from cotton blend, this sweatshirt is designed for everyday Indian wear. It features winter wear, warm fabric, and skin-friendly fabric. The navy blue colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XXL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D051", "category": "T-Shirt", "title": "Men's Oversized Graphic T-Shirt - Navy Blue", "text": "Men's Oversized Graphic T-Shirt - Navy Blue. Made from cotton blend, this t-shirt is designed for everyday Indian wear. It features breathable fabric, machine washable, and easy-care construction. The navy blue colour works well for casual, office, travel, or festive styling depending on the garment. Available in size S and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D052", "category": "Shirt", "title": "Women's Striped Casual Shirt - Beige", "text": "Women's Striped Casual Shirt - Beige. Made from viscose blend, this shirt is designed for everyday Indian wear. It features button closure, slim fit, and everyday comfort. The beige colour works well for casual, office, travel, or festive styling depending on the garment. Available in size M and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D053", "category": "Jeans", "title": "Men's Slim Fit Stretch Jeans - Grey", "text": "Men's Slim Fit Stretch Jeans - Grey. Made from cotton denim, this jeans is designed for everyday Indian wear. It features zip fly, durable stitching, and durable stitching. The grey colour works well for casual, office, travel, or festive styling depending on the garment. Available in size L and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D054", "category": "Kurta", "title": "Women's Printed Straight Kurta - Mustard", "text": "Women's Printed Straight Kurta - Mustard. Made from cotton slub, this kurta is designed for everyday Indian wear. It features breathable fabric, comfortable fit, and minimal shrinkage. The mustard colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D055", "category": "Saree", "title": "Women's Cotton Handloom Saree - Pink", "text": "Women's Cotton Handloom Saree - Pink. Made from chiffon, this saree is designed for everyday Indian wear. It features festive wear, printed border, and colourfast finish. The pink colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XXL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D056", "category": "Dress", "title": "Women's Casual Fit Dress - Yellow", "text": "Women's Casual Fit Dress - Yellow. Made from viscose, this dress is designed for everyday Indian wear. It features comfortable fit, short sleeves, and skin-friendly fabric. The yellow colour works well for casual, office, travel, or festive styling depending on the garment. Available in size S and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D057", "category": "Hoodie", "title": "Unisex Fleece Pullover Hoodie - Wine", "text": "Unisex Fleece Pullover Hoodie - Wine. Made from fleece, this hoodie is designed for everyday Indian wear. It features kangaroo pocket, warm fabric, and easy-care construction. The wine colour works well for casual, office, travel, or festive styling depending on the garment. Available in size M and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D058", "category": "Jacket", "title": "Women's Quilted Winter Jacket - Black", "text": "Women's Quilted Winter Jacket - Black. Made from denim, this jacket is designed for everyday Indian wear. It features lightweight, winter wear, and everyday comfort. The black colour works well for casual, office, travel, or festive styling depending on the garment. Available in size L and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D059", "category": "Leggings", "title": "Women's Printed Active Leggings - Grey", "text": "Women's Printed Active Leggings - Grey. Made from nylon spandex, this leggings is designed for everyday Indian wear. It features comfortable waistband, high waist, and durable stitching. The grey colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D060", "category": "Sweatshirt", "title": "Men's Regular Fit Sweatshirt - Maroon", "text": "Men's Regular Fit Sweatshirt - Maroon. Made from poly cotton, this sweatshirt is designed for everyday Indian wear. It features winter wear, warm fabric, and minimal shrinkage. The maroon colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XXL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D061", "category": "T-Shirt", "title": "Men's Cotton Crew Neck T-Shirt - White", "text": "Men's Cotton Crew Neck T-Shirt - White. Made from 100% cotton, this t-shirt is designed for everyday Indian wear. It features breathable fabric, machine washable, and colourfast finish. The white colour works well for casual, office, travel, or festive styling depending on the garment. Available in size S and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D062", "category": "Shirt", "title": "Men's Checked Cotton Shirt - Olive", "text": "Men's Checked Cotton Shirt - Olive. Made from linen blend, this shirt is designed for everyday Indian wear. It features button closure, slim fit, and skin-friendly fabric. The olive colour works well for casual, office, travel, or festive styling depending on the garment. Available in size M and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D063", "category": "Jeans", "title": "Men's Regular Fit Denim Jeans - Grey", "text": "Men's Regular Fit Denim Jeans - Grey. Made from comfort stretch denim, this jeans is designed for everyday Indian wear. It features zip fly, durable stitching, and easy-care construction. The grey colour works well for casual, office, travel, or festive styling depending on the garment. Available in size L and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D064", "category": "Kurta", "title": "Men's Regular Fit Kurta - White", "text": "Men's Regular Fit Kurta - White. Made from linen blend, this kurta is designed for everyday Indian wear. It features breathable fabric, comfortable fit, and everyday comfort. The white colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D065", "category": "Saree", "title": "Women's Printed Daily Wear Saree - Green", "text": "Women's Printed Daily Wear Saree - Green. Made from cotton, this saree is designed for everyday Indian wear. It features festive wear, printed border, and durable stitching. The green colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XXL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D066", "category": "Dress", "title": "Women's Solid Midi Dress - Maroon", "text": "Women's Solid Midi Dress - Maroon. Made from cotton blend, this dress is designed for everyday Indian wear. It features comfortable fit, short sleeves, and minimal shrinkage. The maroon colour works well for casual, office, travel, or festive styling depending on the garment. Available in size S and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D067", "category": "Hoodie", "title": "Women's Oversized Fleece Hoodie - Black", "text": "Women's Oversized Fleece Hoodie - Black. Made from poly cotton, this hoodie is designed for everyday Indian wear. It features kangaroo pocket, warm fabric, and colourfast finish. The black colour works well for casual, office, travel, or festive styling depending on the garment. Available in size M and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D068", "category": "Jacket", "title": "Women's Casual Puffer Jacket - Olive", "text": "Women's Casual Puffer Jacket - Olive. Made from quilted polyester, this jacket is designed for everyday Indian wear. It features lightweight, winter wear, and skin-friendly fabric. The olive colour works well for casual, office, travel, or festive styling depending on the garment. Available in size L and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D069", "category": "Leggings", "title": "Women's High Waist Stretch Leggings - Olive Green", "text": "Women's High Waist Stretch Leggings - Olive Green. Made from cotton stretch, this leggings is designed for everyday Indian wear. It features comfortable waistband, high waist, and easy-care construction. The olive green colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D070", "category": "Sweatshirt", "title": "Women's Fleece Sweatshirt - Black", "text": "Women's Fleece Sweatshirt - Black. Made from cotton blend, this sweatshirt is designed for everyday Indian wear. It features winter wear, warm fabric, and everyday comfort. The black colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XXL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D071", "category": "T-Shirt", "title": "Men's Oversized Graphic T-Shirt - Black", "text": "Men's Oversized Graphic T-Shirt - Black. Made from cotton blend, this t-shirt is designed for everyday Indian wear. It features breathable fabric, machine washable, and durable stitching. The black colour works well for casual, office, travel, or festive styling depending on the garment. Available in size S and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D072", "category": "Shirt", "title": "Women's Striped Casual Shirt - Black", "text": "Women's Striped Casual Shirt - Black. Made from viscose blend, this shirt is designed for everyday Indian wear. It features button closure, slim fit, and minimal shrinkage. The black colour works well for casual, office, travel, or festive styling depending on the garment. Available in size M and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D073", "category": "Jeans", "title": "Men's Slim Fit Stretch Jeans - Grey", "text": "Men's Slim Fit Stretch Jeans - Grey. Made from stretch denim, this jeans is designed for everyday Indian wear. It features zip fly, durable stitching, and colourfast finish. The grey colour works well for casual, office, travel, or festive styling depending on the garment. Available in size L and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D074", "category": "Kurta", "title": "Women's Printed Straight Kurta - Pink", "text": "Women's Printed Straight Kurta - Pink. Made from cotton slub, this kurta is designed for everyday Indian wear. It features breathable fabric, comfortable fit, and skin-friendly fabric. The pink colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D075", "category": "Saree", "title": "Women's Cotton Handloom Saree - Blue", "text": "Women's Cotton Handloom Saree - Blue. Made from chiffon, this saree is designed for everyday Indian wear. It features festive wear, printed border, and easy-care construction. The blue colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XXL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D076", "category": "Dress", "title": "Women's Casual Fit Dress - Green", "text": "Women's Casual Fit Dress - Green. Made from viscose, this dress is designed for everyday Indian wear. It features comfortable fit, short sleeves, and everyday comfort. The green colour works well for casual, office, travel, or festive styling depending on the garment. Available in size S and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D077", "category": "Hoodie", "title": "Unisex Fleece Pullover Hoodie - Navy Blue", "text": "Unisex Fleece Pullover Hoodie - Navy Blue. Made from fleece, this hoodie is designed for everyday Indian wear. It features kangaroo pocket, warm fabric, and durable stitching. The navy blue colour works well for casual, office, travel, or festive styling depending on the garment. Available in size M and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D078", "category": "Jacket", "title": "Women's Quilted Winter Jacket - Beige", "text": "Women's Quilted Winter Jacket - Beige. Made from denim, this jacket is designed for everyday Indian wear. It features lightweight, winter wear, and minimal shrinkage. The beige colour works well for casual, office, travel, or festive styling depending on the garment. Available in size L and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D079", "category": "Leggings", "title": "Women's Printed Active Leggings - Black", "text": "Women's Printed Active Leggings - Black. Made from nylon spandex, this leggings is designed for everyday Indian wear. It features comfortable waistband, high waist, and colourfast finish. The black colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D080", "category": "Sweatshirt", "title": "Men's Regular Fit Sweatshirt - Navy Blue", "text": "Men's Regular Fit Sweatshirt - Navy Blue. Made from poly cotton, this sweatshirt is designed for everyday Indian wear. It features winter wear, warm fabric, and skin-friendly fabric. The navy blue colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XXL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D081", "category": "T-Shirt", "title": "Men's Cotton Crew Neck T-Shirt - Mustard", "text": "Men's Cotton Crew Neck T-Shirt - Mustard. Made from 100% cotton, this t-shirt is designed for everyday Indian wear. It features breathable fabric, machine washable, and easy-care construction. The mustard colour works well for casual, office, travel, or festive styling depending on the garment. Available in size S and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D082", "category": "Shirt", "title": "Men's Checked Cotton Shirt - Blue", "text": "Men's Checked Cotton Shirt - Blue. Made from linen blend, this shirt is designed for everyday Indian wear. It features button closure, slim fit, and everyday comfort. The blue colour works well for casual, office, travel, or festive styling depending on the garment. Available in size M and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D083", "category": "Jeans", "title": "Men's Regular Fit Denim Jeans - Grey", "text": "Men's Regular Fit Denim Jeans - Grey. Made from cotton denim, this jeans is designed for everyday Indian wear. It features zip fly, durable stitching, and durable stitching. The grey colour works well for casual, office, travel, or festive styling depending on the garment. Available in size L and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D084", "category": "Kurta", "title": "Men's Regular Fit Kurta - Beige", "text": "Men's Regular Fit Kurta - Beige. Made from linen blend, this kurta is designed for everyday Indian wear. It features breathable fabric, comfortable fit, and minimal shrinkage. The beige colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D085", "category": "Saree", "title": "Women's Printed Daily Wear Saree - Red", "text": "Women's Printed Daily Wear Saree - Red. Made from cotton, this saree is designed for everyday Indian wear. It features festive wear, printed border, and colourfast finish. The red colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XXL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D086", "category": "Dress", "title": "Women's Solid Midi Dress - Floral Pink", "text": "Women's Solid Midi Dress - Floral Pink. Made from cotton blend, this dress is designed for everyday Indian wear. It features comfortable fit, short sleeves, and skin-friendly fabric. The floral pink colour works well for casual, office, travel, or festive styling depending on the garment. Available in size S and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D087", "category": "Hoodie", "title": "Women's Oversized Fleece Hoodie - Wine", "text": "Women's Oversized Fleece Hoodie - Wine. Made from poly cotton, this hoodie is designed for everyday Indian wear. It features kangaroo pocket, warm fabric, and easy-care construction. The wine colour works well for casual, office, travel, or festive styling depending on the garment. Available in size M and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D088", "category": "Jacket", "title": "Women's Casual Puffer Jacket - Black", "text": "Women's Casual Puffer Jacket - Black. Made from quilted polyester, this jacket is designed for everyday Indian wear. It features lightweight, winter wear, and everyday comfort. The black colour works well for casual, office, travel, or festive styling depending on the garment. Available in size L and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D089", "category": "Leggings", "title": "Women's High Waist Stretch Leggings - Grey", "text": "Women's High Waist Stretch Leggings - Grey. Made from cotton stretch, this leggings is designed for everyday Indian wear. It features comfortable waistband, high waist, and durable stitching. The grey colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D090", "category": "Sweatshirt", "title": "Women's Fleece Sweatshirt - Maroon", "text": "Women's Fleece Sweatshirt - Maroon. Made from cotton blend, this sweatshirt is designed for everyday Indian wear. It features winter wear, warm fabric, and minimal shrinkage. The maroon colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XXL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D091", "category": "T-Shirt", "title": "Men's Oversized Graphic T-Shirt - Sky Blue", "text": "Men's Oversized Graphic T-Shirt - Sky Blue. Made from cotton blend, this t-shirt is designed for everyday Indian wear. It features breathable fabric, machine washable, and colourfast finish. The sky blue colour works well for casual, office, travel, or festive styling depending on the garment. Available in size S and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D092", "category": "Shirt", "title": "Women's Striped Casual Shirt - White", "text": "Women's Striped Casual Shirt - White. Made from viscose blend, this shirt is designed for everyday Indian wear. It features button closure, slim fit, and skin-friendly fabric. The white colour works well for casual, office, travel, or festive styling depending on the garment. Available in size M and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D093", "category": "Jeans", "title": "Men's Slim Fit Stretch Jeans - Grey", "text": "Men's Slim Fit Stretch Jeans - Grey. Made from comfort stretch denim, this jeans is designed for everyday Indian wear. It features zip fly, durable stitching, and easy-care construction. The grey colour works well for casual, office, travel, or festive styling depending on the garment. Available in size L and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D094", "category": "Kurta", "title": "Women's Printed Straight Kurta - Teal", "text": "Women's Printed Straight Kurta - Teal. Made from cotton slub, this kurta is designed for everyday Indian wear. It features breathable fabric, comfortable fit, and everyday comfort. The teal colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D095", "category": "Saree", "title": "Women's Cotton Handloom Saree - Maroon", "text": "Women's Cotton Handloom Saree - Maroon. Made from chiffon, this saree is designed for everyday Indian wear. It features festive wear, printed border, and durable stitching. The maroon colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XXL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D096", "category": "Dress", "title": "Women's Casual Fit Dress - Navy Blue", "text": "Women's Casual Fit Dress - Navy Blue. Made from viscose, this dress is designed for everyday Indian wear. It features comfortable fit, short sleeves, and minimal shrinkage. The navy blue colour works well for casual, office, travel, or festive styling depending on the garment. Available in size S and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D097", "category": "Hoodie", "title": "Unisex Fleece Pullover Hoodie - Black", "text": "Unisex Fleece Pullover Hoodie - Black. Made from fleece, this hoodie is designed for everyday Indian wear. It features kangaroo pocket, warm fabric, and colourfast finish. The black colour works well for casual, office, travel, or festive styling depending on the garment. Available in size M and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D098", "category": "Jacket", "title": "Women's Quilted Winter Jacket - Olive", "text": "Women's Quilted Winter Jacket - Olive. Made from denim, this jacket is designed for everyday Indian wear. It features lightweight, winter wear, and skin-friendly fabric. The olive colour works well for casual, office, travel, or festive styling depending on the garment. Available in size L and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D099", "category": "Leggings", "title": "Women's Printed Active Leggings - Olive Green", "text": "Women's Printed Active Leggings - Olive Green. Made from nylon spandex, this leggings is designed for everyday Indian wear. It features comfortable waistband, high waist, and easy-care construction. The olive green colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}, {"docid": "D100", "category": "Sweatshirt", "title": "Men's Regular Fit Sweatshirt - Black", "text": "Men's Regular Fit Sweatshirt - Black. Made from poly cotton, this sweatshirt is designed for everyday Indian wear. It features winter wear, warm fabric, and everyday comfort. The black colour works well for casual, office, travel, or festive styling depending on the garment. Available in size XXL and other standard sizes. The garment is suitable for comfortable regular use and can be paired with common wardrobe essentials."}];
+</script>
+<script>
+// ===================== Porter Stemmer (Porter, 1980) =====================
+const VOWELS = "aeiou";
+function isCons(b, i) {
+  const ch = b[i];
+  if (VOWELS.includes(ch)) return false;
+  if (ch === 'y') return i === 0 ? true : !isCons(b, i - 1);
+  return true;
+}
+function measure(b, j) {
+  let i = 0, n = 0;
+  while (true) { if (i > j) return n; if (!isCons(b, i)) break; i++; }
+  i++;
+  while (true) {
+    while (true) { if (i > j) return n; if (isCons(b, i)) break; i++; }
+    i++; n++;
+    while (true) { if (i > j) return n; if (!isCons(b, i)) break; i++; }
+    i++;
+  }
+}
+function vowelInStem(b, j) {
+  for (let i = 0; i <= j; i++) if (!isCons(b, i)) return true;
+  return false;
+}
+function doubleC(b, j) {
+  if (j < 1) return false;
+  if (b[j] !== b[j - 1]) return false;
+  return isCons(b, j);
+}
+function cvc(b, i) {
+  if (i < 2 || !isCons(b, i) || isCons(b, i - 1) || !isCons(b, i - 2)) return false;
+  return !"wxy".includes(b[i]);
+}
+function porterStem(word) {
+  word = word.toLowerCase();
+  let b = word;
+  let k = b.length - 1;
+  if (k <= 1) return b;
+  let j = 0;
+
+  function ends(s) {
+    const len = s.length;
+    if (b[k] !== s[len - 1]) return false;
+    if (len > k + 1) return false;
+    if (b.slice(k - len + 1, k + 1) !== s) return false;
+    j = k - len;
+    return true;
+  }
+  function setto(s) {
+    b = b.slice(0, j + 1) + s;
+    k = j + s.length;
+  }
+  function r(s) { if (measure(b, j) > 0) setto(s); }
+
+  // step1ab
+  if (b[k] === 's') {
+    if (ends("sses")) k -= 2;
+    else if (ends("ies")) setto("i");
+    else if (b[k - 1] !== 's') k -= 1;
+  }
+  if (ends("eed")) {
+    if (measure(b, j) > 0) k -= 1;
+  } else if ((ends("ed") || ends("ing")) && vowelInStem(b, j)) {
+    k = j;
+    if (ends("at")) setto("ate");
+    else if (ends("bl")) setto("ble");
+    else if (ends("iz")) setto("ize");
+    else if (doubleC(b, k)) { if (!"lsz".includes(b[k - 1])) k -= 1; }
+    else if (measure(b, k) === 1 && cvc(b, k)) setto("e");
+  }
+  if (k < 0) return "";
+
+  // step1c
+  if (ends("y") && vowelInStem(b, j)) { b = b.slice(0, k) + "i"; }
+
+  // step2
+  const step2map = {
+    ational: "ate", tional: "tion", enci: "ence", anci: "ance",
+    izer: "ize", abli: "able", alli: "al", entli: "ent",
+    eli: "e", ousli: "ous", ization: "ize", ation: "ate",
+    ator: "ate", alism: "al", iveness: "ive", fulness: "ful",
+    ousness: "ous", aliti: "al", iviti: "ive", biliti: "ble",
+  };
+  for (const suf in step2map) { if (ends(suf)) { r(step2map[suf]); break; } }
+
+  // step3
+  const step3map = { icate: "ic", ative: "", alize: "al", iciti: "ic", ical: "ic", ful: "", ness: "" };
+  for (const suf in step3map) { if (ends(suf)) { r(step3map[suf]); break; } }
+
+  // step4
+  const step4suf = ["al", "ance", "ence", "er", "ic", "able", "ible", "ant",
+    "ement", "ment", "ent", "ou", "ism", "ate", "iti", "ous", "ive", "ize"];
+  let matched4 = false;
+  for (const suf of step4suf) {
+    if (ends(suf)) { if (measure(b, j) > 1) k = j; matched4 = true; break; }
+  }
+  if (!matched4 && ends("ion")) {
+    if (measure(b, j) > 1 && j >= 0 && "st".includes(b[j])) k = j;
+  }
+
+  // step5
+  j = k;
+  if (b[k] === 'e') {
+    const a = measure(b, j);
+    if (a > 1 || (a === 1 && !cvc(b, k - 1))) k -= 1;
+  }
+  if (b[k] === 'l' && doubleC(b, k) && measure(b, j) > 1) k -= 1;
+
+  return b.slice(0, k + 1);
+}
+
+// ===================== Preprocessing =====================
+const STOPWORDS = new Set([
+  "a", "an", "and", "are", "as", "at", "be", "by", "can", "depending",
+  "for", "from", "has", "have", "in", "into", "is", "it", "its", "of",
+  "on", "or", "other", "such", "than", "that", "the", "this", "to",
+  "well", "with", "works", "made", "designed", "available", "suitable",
+  "paired", "common", "features",
+]);
+
+function tokenize(text) {
+  const matches = text.match(/[a-zA-Z0-9]+/g) || [];
+  return matches.map(t => t.toLowerCase());
+}
+
+function preprocess(text) {
+  return tokenize(text).filter(t => !STOPWORDS.has(t)).map(porterStem);
+}
+
+// ===================== NOVELTY 5: span-aware tokenization =====================
+// Same tokenize -> stopword-filter -> stem pipeline as preprocess(), but each
+// surviving token also keeps its raw text and character span in the ORIGINAL
+// string. Position i in this array lines up 1:1 with position i in
+// preprocess(text) (both apply the same filter), which lets snippet
+// generation map a stemmed-token match straight back to highlightable
+// original text, and lets the positional index's integer positions be
+// reused directly without any separate offset bookkeeping.
+function tokenizeWithSpans(text) {
+  const re = /[a-zA-Z0-9]+/g;
+  const spans = [];
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    spans.push({ raw: m[0], start: m.index, end: m.index + m[0].length });
+  }
+  return spans;
+}
+function preprocessWithSpans(text) {
+  const spans = tokenizeWithSpans(text);
+  const out = [];
+  for (const s of spans) {
+    const lower = s.raw.toLowerCase();
+    if (STOPWORDS.has(lower)) continue;
+    out.push({ stem: porterStem(lower), start: s.start, end: s.end, raw: s.raw });
+  }
+  return out;
+}
+
+// ===================== Index building =====================
+// The corpus is normalized once and then reused across all ranking modes.
+// We keep both the full document stream and a title-only stream so the
+// search engine can score whole-doc matches and separately reward title hits.
+function buildCorpusModel(docs) {
+  const docIds = docs.map(d => d.docid);
+  const docById = {};
+  const docTokens = {};
+  const titleTokens = {};
+  const docFullText = {};
+  const docSpans = {};
+  docs.forEach(d => {
+    docById[d.docid] = d;
+    const fullText = d.title + ". " + d.text;
+    docFullText[d.docid] = fullText;
+    const spans = preprocessWithSpans(fullText);
+    docSpans[d.docid] = spans;
+    docTokens[d.docid] = spans.map(s => s.stem); // identical to preprocess(fullText)
+    titleTokens[d.docid] = preprocess(d.title + " " + d.category);
+  });
+  return { docs, docIds, docById, docTokens, titleTokens, docFullText, docSpans, N: docs.length };
+}
+
+function buildPositionalIndex(corpus) {
+  const index = {}; // term -> {df, postings: {docid: {tf, positions}}}
+  for (const docid of corpus.docIds) {
+    const tokens = corpus.docTokens[docid];
+    const termPositions = {};
+    tokens.forEach((term, pos) => {
+      (termPositions[term] = termPositions[term] || []).push(pos);
+    });
+    for (const term in termPositions) {
+      if (!index[term]) index[term] = { df: 0, postings: {} };
+      index[term].postings[docid] = { tf: termPositions[term].length, positions: termPositions[term] };
+      index[term].df += 1;
+    }
+  }
+  return index;
+}
+
+function buildInvertedFromPositional(positionalIndex) {
+  const inverted = {};
+  for (const term in positionalIndex) {
+    const entry = positionalIndex[term];
+    const postings = {};
+    for (const docid in entry.postings) postings[docid] = entry.postings[docid].tf;
+    inverted[term] = { df: entry.df, postings };
+  }
+  return inverted;
+}
+
+function buildTitleFieldIndex(corpus) {
+  const titleIndex = {};
+  for (const docid of corpus.docIds) {
+    const counts = {};
+    corpus.titleTokens[docid].forEach(t => { counts[t] = (counts[t] || 0) + 1; });
+    for (const t in counts) {
+      titleIndex[t] = titleIndex[t] || {};
+      titleIndex[t][docid] = counts[t];
+    }
+  }
+  return titleIndex;
+}
+
+function counter(arr) {
+  const c = {};
+  arr.forEach(x => { c[x] = (c[x] || 0) + 1; });
+  return c;
+}
+
+// ===================== VSM (lnc.ltc) =====================
+class VSMIndex {
+  constructor(corpus, invertedIndex) {
+    this.corpus = corpus;
+    this.N = corpus.N;
+    this.index = invertedIndex;
+    const rawDocWeights = {};
+    for (const term in invertedIndex) {
+      const entry = invertedIndex[term];
+      for (const docid in entry.postings) {
+        const tf = entry.postings[docid];
+        rawDocWeights[docid] = rawDocWeights[docid] || {};
+        rawDocWeights[docid][term] = 1 + Math.log10(tf);
+      }
+    }
+    this.docVectors = {};
+    for (const docid in rawDocWeights) {
+      const weights = rawDocWeights[docid];
+      let norm = 0;
+      for (const t in weights) norm += weights[t] * weights[t];
+      norm = Math.sqrt(norm);
+      const vec = {};
+      if (norm > 0) for (const t in weights) vec[t] = weights[t] / norm;
+      this.docVectors[docid] = vec;
+    }
+    corpus.docIds.forEach(d => { if (!this.docVectors[d]) this.docVectors[d] = {}; });
+  }
+  idf(term) {
+    const entry = this.index[term];
+    if (!entry || entry.df === 0) return 0;
+    return Math.log10(this.N / entry.df);
+  }
+  queryVector(queryText) {
+    const tokens = preprocess(queryText);
+    const tf = counter(tokens);
+    const raw = {};
+    for (const term in tf) {
+      const idf = this.idf(term);
+      raw[term] = idf <= 0 ? 0 : (1 + Math.log10(tf[term])) * idf;
+    }
+    let norm = 0;
+    for (const t in raw) norm += raw[t] * raw[t];
+    norm = Math.sqrt(norm) || 1;
+    const vec = {};
+    for (const t in raw) vec[t] = raw[t] / norm;
+    return [vec, tokens];
+  }
+  search(queryText, topK = 10) {
+    const [qVec, qTokens] = this.queryVector(queryText);
+    const oov = [...new Set(qTokens)].filter(t => !this.index[t]);
+    const scores = {};
+    for (const term in qVec) {
+      const wqt = qVec[term];
+      if (wqt === 0) continue;
+      const entry = this.index[term];
+      if (!entry) continue;
+      for (const docid in entry.postings) {
+        const wdt = this.docVectors[docid][term] || 0;
+        scores[docid] = (scores[docid] || 0) + wqt * wdt;
+      }
+    }
+    const ranked = Object.entries(scores).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
+    return [ranked.slice(0, topK), oov];
+  }
+}
+
+// ===================== BM25 =====================
+class BM25Index {
+  constructor(corpus, invertedIndex, k1 = 1.5, b = 0.75) {
+    this.corpus = corpus;
+    this.index = invertedIndex;
+    this.N = corpus.N;
+    this.k1 = k1; this.b = b;
+    this.docLen = {};
+    corpus.docIds.forEach(d => { this.docLen[d] = corpus.docTokens[d].length; });
+    const total = Object.values(this.docLen).reduce((a, c) => a + c, 0);
+    this.avgdl = total / Math.max(1, corpus.docIds.length);
+  }
+  idf(term) {
+    const entry = this.index[term];
+    const df = entry ? entry.df : 0;
+    return Math.log(((this.N - df + 0.5) / (df + 0.5)) + 1);
+  }
+  search(queryText, topK = 10) {
+    const qTerms = preprocess(queryText);
+    const oov = [...new Set(qTerms)].filter(t => !this.index[t]);
+    const scores = {};
+    const qtf = counter(qTerms);
+    for (const term in qtf) {
+      const entry = this.index[term];
+      if (!entry) continue;
+      const idf = this.idf(term);
+      for (const docid in entry.postings) {
+        const tf = entry.postings[docid];
+        const dl = this.docLen[docid] || 0;
+        const denom = tf + this.k1 * (1 - this.b + this.b * dl / (this.avgdl || 1));
+        scores[docid] = (scores[docid] || 0) + idf * (tf * (this.k1 + 1)) / (denom || 1);
+      }
+    }
+    const ranked = Object.entries(scores).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
+    return [ranked.slice(0, topK), oov];
+  }
+}
+
+// ===================== Positional search (phrase / proximity) =====================
+function candidateDocs(positionalIndex, terms) {
+  if (!terms.length) return new Set();
+  const sets = [];
+  for (const t of terms) {
+    const entry = positionalIndex[t];
+    if (!entry) return new Set();
+    sets.push(new Set(Object.keys(entry.postings)));
+  }
+  return sets.reduce((a, b) => new Set([...a].filter(x => b.has(x))));
+}
+
+function phraseSearch(positionalIndex, phraseText) {
+  const terms = preprocess(phraseText);
+  if (terms.length < 2) {
+    const entry = terms.length ? positionalIndex[terms[0]] : null;
+    if (!entry) return {};
+    const out = {};
+    for (const d in entry.postings) out[d] = entry.postings[d].positions;
+    return out;
+  }
+  const docs = candidateDocs(positionalIndex, terms);
+  const matches = {};
+  for (const docid of docs) {
+    const posLists = terms.map(t => positionalIndex[t].postings[docid].positions);
+    const firstPositions = posLists[0];
+    const hits = [];
+    for (const start of firstPositions) {
+      let ok = true;
+      for (let offset = 1; offset < posLists.length; offset++) {
+        if (!posLists[offset].includes(start + offset)) { ok = false; break; }
+      }
+      if (ok) hits.push(start);
+    }
+    if (hits.length) matches[docid] = hits.sort((a, b) => a - b);
+  }
+  return matches;
+}
+
+function proximitySearch(positionalIndex, termA, termB, k, ordered = true) {
+  const ta = preprocess(termA)[0];
+  const tb = preprocess(termB)[0];
+  if (!ta || !tb || !positionalIndex[ta] || !positionalIndex[tb]) return {};
+  const docs = candidateDocs(positionalIndex, [ta, tb]);
+  const matches = {};
+  for (const docid of docs) {
+    const posA = positionalIndex[ta].postings[docid].positions;
+    const posB = positionalIndex[tb].postings[docid].positions;
+    const hits = [];
+    for (const a of posA) for (const b of posB) {
+      const gap = b - a;
+      if (ordered ? (gap > 0 && gap <= k) : (Math.abs(gap) > 0 && Math.abs(gap) <= k)) hits.push([a, b]);
+    }
+    if (hits.length) matches[docid] = [...new Set(hits.map(h => h.join(',')))].map(s => s.split(',').map(Number));
+  }
+  return matches;
+}
+
+// ===================== NOVELTY 5: Snippet generation =====================
+// Google-style "best window" snippet: slide a fixed-size window of
+// stemmed-token positions over the document, pick the window with the most
+// hits against the query's stemmed terms, then render the ORIGINAL text in
+// that window with matches wrapped in <mark>. Falls back to the start of the
+// document if a term never occurs (e.g. an OOV query, or a doc with no hits
+// at all -- the caller should still show a snippet so results never look
+// bare).
+function buildSnippet(docid, queryTermsStemmed, windowTokens = 16) {
+  const spans = engine.corpus.docSpans[docid];
+  const fullText = engine.corpus.docFullText[docid];
+  if (!spans || !spans.length) return escapeHtml((fullText || "").slice(0, 140));
+  const qSet = new Set(queryTermsStemmed || []);
+
+  let best = { start: 0, end: Math.min(windowTokens, spans.length), hits: -1 };
+  for (let start = 0; start < spans.length; start++) {
+    const end = Math.min(start + windowTokens, spans.length);
+    let hits = 0;
+    for (let i = start; i < end; i++) if (qSet.has(spans[i].stem)) hits++;
+    if (hits > best.hits) best = { start, end, hits };
+    if (end >= spans.length) break;
+  }
+
+  const PAD = 3; // a few chars of context so we don't cut mid-punctuation
+  const charStart = Math.max(0, spans[best.start].start - PAD);
+  const charEnd = Math.min(fullText.length, spans[best.end - 1].end + PAD);
+
+  let out = "";
+  let cursor = charStart;
+  for (let i = best.start; i < best.end; i++) {
+    const s = spans[i];
+    if (s.start < charStart || s.end > charEnd) continue;
+    out += escapeHtml(fullText.slice(cursor, s.start));
+    const raw = fullText.slice(s.start, s.end);
+    out += qSet.has(s.stem) ? `<mark class="hl">${escapeHtml(raw)}</mark>` : escapeHtml(raw);
+    cursor = s.end;
+  }
+  out += escapeHtml(fullText.slice(cursor, charEnd));
+
+  const prefix = charStart > 0 ? "&hellip;" : "";
+  const suffix = charEnd < fullText.length ? "&hellip;" : "";
+  return prefix + out + suffix;
+}
+
+// ===================== NOVELTY 6: rank-shift vs. plain VSM =====================
+// Ranks a query's candidate documents under plain VSM lnc.ltc (Part B), so a
+// positional-index result (Part C: phrase / proximity) can show how many
+// places it moved relative to that bag-of-words baseline -- the visual
+// version of "explain where positional info changes the result order/set"
+// that Part E's testing asks for in writing.
+function computeBaselineRankMap(vsmIndex, queryText, poolSize = 100) {
+  const [ranked] = vsmIndex.search(queryText, poolSize);
+  const map = {};
+  ranked.forEach(([docid], i) => { map[docid] = i + 1; });
+  return map;
+}
+function rankShiftBadge(docid, currentRank, baselineMap) {
+  if (!baselineMap || !(docid in baselineMap)) {
+    return `<span class="rank-shift new" title="Not present in plain VSM's ranked results for this text at all -- often because every term has idf=0 (occurs in every doc) or the terms never co-occur densely enough to score. Positional evidence found it anyway.">NEW</span>`;
+  }
+  const baseRank = baselineMap[docid];
+  const delta = baseRank - currentRank; // positive = moved up (better) under positional search
+  if (delta === 0) {
+    return `<span class="rank-shift same" title="Same position as plain VSM (#${baseRank})">=</span>`;
+  }
+  const arrow = delta > 0 ? "&#9650;" : "&#9660;";
+  const cls = delta > 0 ? "up" : "down";
+  return `<span class="rank-shift ${cls}" title="Plain VSM ranked this document #${baseRank} for the same query text">${arrow}${Math.abs(delta)}</span>`;
+}
+
+// ===================== SDM (Sequential Dependence Model) =====================
+function orderedBigramCount(positionalIndex, t1, t2, docid, window = 2) {
+  const p1 = positionalIndex[t1].postings[docid].positions;
+  const p2 = positionalIndex[t2].postings[docid].positions;
+  let count = 0;
+  for (const a of p1) for (const b of p2) if (b - a > 0 && b - a <= window) count++;
+  return count;
+}
+function unorderedWindowCount(positionalIndex, t1, t2, docid, window = 4) {
+  const p1 = positionalIndex[t1].postings[docid].positions;
+  const p2 = positionalIndex[t2].postings[docid].positions;
+  let count = 0;
+  for (const a of p1) for (const b of p2) if (Math.abs(b - a) > 0 && Math.abs(b - a) <= window) count++;
+  return count;
+}
+
+class SDMRanker {
+  constructor(corpus, positionalIndex, unigramRanker, lambdaT = 0.8, lambdaO = 0.15, lambdaU = 0.05,
+    orderedWindow = 2, unorderedWindow = 4) {
+    this.corpus = corpus;
+    this.pindex = positionalIndex;
+    this.unigramRanker = unigramRanker;
+    this.lambdaT = lambdaT; this.lambdaO = lambdaO; this.lambdaU = lambdaU;
+    this.orderedWindow = orderedWindow; this.unorderedWindow = unorderedWindow;
+  }
+  search(queryText, topK = 10, candidatePool = 50) {
+    const qTerms = preprocess(queryText);
+    const oov = [...new Set(qTerms)].filter(t => !this.pindex[t]);
+    const [unigramRanked] = this.unigramRanker.search(queryText, candidatePool);
+    const maxU = Math.max(0, ...unigramRanked.map(([, s]) => s)) || 1;
+    const unigramScores = {};
+    unigramRanked.forEach(([d, s]) => { unigramScores[d] = s / maxU; });
+
+    const distinctTerms = [...new Set(qTerms)];
+    const orderedScores = {}, unorderedScores = {};
+    for (let i = 0; i < distinctTerms.length - 1; i++) {
+      const t1 = distinctTerms[i], t2 = distinctTerms[i + 1];
+      if (!this.pindex[t1] || !this.pindex[t2]) continue;
+      const docs = candidateDocs(this.pindex, [t1, t2]);
+      for (const docid of docs) {
+        orderedScores[docid] = (orderedScores[docid] || 0) + orderedBigramCount(this.pindex, t1, t2, docid, this.orderedWindow);
+        unorderedScores[docid] = (unorderedScores[docid] || 0) + unorderedWindowCount(this.pindex, t1, t2, docid, this.unorderedWindow);
+      }
+    }
+    const maxO = Math.max(0, ...Object.values(orderedScores)) || 1;
+    const maxUn = Math.max(0, ...Object.values(unorderedScores)) || 1;
+
+    const allDocs = new Set([...Object.keys(unigramScores), ...Object.keys(orderedScores), ...Object.keys(unorderedScores)]);
+    const final = {};
+    for (const docid of allDocs) {
+      const ft = unigramScores[docid] || 0;
+      const fo = (orderedScores[docid] || 0) / maxO;
+      const fu = (unorderedScores[docid] || 0) / maxUn;
+      final[docid] = this.lambdaT * ft + this.lambdaO * fo + this.lambdaU * fu;
+    }
+    const ranked = Object.entries(final).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
+    return [ranked.slice(0, topK), oov, { orderedHits: orderedScores, unorderedHits: unorderedScores }];
+  }
+}
+
+// ===================== Fielded (title/category) boost =====================
+class FieldBoostedRanker {
+  constructor(baseRanker, titleIndex, boost = 1.5) {
+    this.baseRanker = baseRanker;
+    this.titleIndex = titleIndex;
+    this.boost = boost;
+  }
+  search(queryText, topK = 10) {
+    const [baseRanked, oov] = this.baseRanker.search(queryText, 200);
+    const qTerms = new Set(preprocess(queryText));
+    const boosted = baseRanked.map(([docid, score]) => {
+      let factor = 1;
+      for (const term of qTerms) {
+        if (this.titleIndex[term] && this.titleIndex[term][docid] !== undefined) factor *= this.boost;
+      }
+      return [docid, score * factor];
+    });
+    boosted.sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
+    return [boosted.slice(0, topK), oov];
+  }
+}
+
+// ===================== NOVELTY 8: Custom SMART-notation VSM builder =====================
+// Part B requires exactly lnc.ltc (log-tf, no-idf, cosine on the document
+// side; log-tf, idf, cosine on the query side). This generalizes that into
+// the full SMART notation (Salton & Buckley, "Term-weighting approaches in
+// automatic text retrieval", IPM 1988) so any tf.df.norm combination can be
+// composed and compared -- lnc.ltc is just the default selection, always
+// still available and never removed.
+const TF_FUNCS = {
+  n: (tf) => tf,                                                    // natural
+  l: (tf) => (tf > 0 ? 1 + Math.log10(tf) : 0),                     // logarithm
+  a: (tf, maxtf) => (maxtf > 0 ? 0.5 + 0.5 * tf / maxtf : 0),        // augmented
+  b: (tf) => (tf > 0 ? 1 : 0),                                      // boolean
+  L: (tf, maxtf, avgtf) =>                                          // log average
+    (tf > 0 && avgtf > 0) ? (1 + Math.log10(tf)) / (1 + Math.log10(avgtf)) : 0,
+};
+const DF_FUNCS = {
+  n: () => 1,                                                       // no idf
+  t: (df, N) => (df > 0 ? Math.log10(N / df) : 0),                  // idf
+  p: (df, N) => (df > 0 ? Math.max(0, Math.log10((N - df) / df)) : 0), // prob idf
+};
+const TF_LABELS = { n: "n \u00b7 natural", l: "l \u00b7 logarithm", a: "a \u00b7 augmented", b: "b \u00b7 boolean", L: "L \u00b7 log average" };
+const DF_LABELS = { n: "n \u00b7 no idf", t: "t \u00b7 idf", p: "p \u00b7 prob idf" };
+const NORM_LABELS = { n: "n \u00b7 none", c: "c \u00b7 cosine", u: "u \u00b7 pivoted unique*", b: "b \u00b7 byte size" };
+
+class SmartVSMIndex {
+  constructor(corpus, invertedIndex, docScheme = "lnc", queryScheme = "ltc") {
+    this.corpus = corpus;
+    this.index = invertedIndex;
+    this.N = corpus.N;
+    this.docScheme = docScheme;
+    this.queryScheme = queryScheme;
+
+    // Per-document stats needed by the richer tf variants (a, L) and norms (u, b).
+    this.maxTf = {}; this.avgTf = {}; this.uniqueTerms = {}; this.charLen = {};
+    corpus.docIds.forEach(docid => {
+      const counts = counter(corpus.docTokens[docid]);
+      const tfs = Object.values(counts);
+      this.maxTf[docid] = tfs.length ? Math.max(...tfs) : 0;
+      this.avgTf[docid] = tfs.length ? tfs.reduce((a, c) => a + c, 0) / tfs.length : 0;
+      this.uniqueTerms[docid] = tfs.length;
+      const d = corpus.docById[docid];
+      this.charLen[docid] = (d.title + " " + d.text).length;
+    });
+
+    this._buildDocVectors();
+  }
+
+  _rawWeight(tf, df, docid, scheme) {
+    const tfW = TF_FUNCS[scheme[0]](tf, this.maxTf[docid], this.avgTf[docid]);
+    const dfW = DF_FUNCS[scheme[1]](df, this.N);
+    return tfW * dfW;
+  }
+
+  // NOTE (honesty flag): 'u' (pivoted-unique) is simplified here to
+  // 1 / (unique term count in the document). True pivoted normalization
+  // (Singhal, Buckley & Mitra, SIGIR 1996) tunes a slope against the
+  // corpus-average unique-term count; that calibration isn't implemented,
+  // so 'u' results are directionally right (penalizes documents with many
+  // distinct terms) but not the textbook pivoted formula. 'b' (byte size)
+  // uses raw character length ^ 0.75, per the slide's CharLength^alpha, alpha<1.
+  _normalize(weights, normCode, docid, fallbackLen) {
+    if (normCode === "n") return weights;
+    if (normCode === "c") {
+      let sq = 0; for (const t in weights) sq += weights[t] * weights[t];
+      const norm = Math.sqrt(sq) || 1;
+      const out = {}; for (const t in weights) out[t] = weights[t] / norm;
+      return out;
+    }
+    if (normCode === "u") {
+      const u = (docid !== undefined ? this.uniqueTerms[docid] : fallbackLen) || 1;
+      const out = {}; for (const t in weights) out[t] = weights[t] / u;
+      return out;
+    }
+    if (normCode === "b") {
+      const len = (docid !== undefined ? this.charLen[docid] : fallbackLen) || 1;
+      const out = {}; for (const t in weights) out[t] = weights[t] / Math.pow(len, 0.75);
+      return out;
+    }
+    return weights;
+  }
+
+  _buildDocVectors() {
+    const raw = {};
+    for (const term in this.index) {
+      const entry = this.index[term];
+      for (const docid in entry.postings) {
+        const tf = entry.postings[docid];
+        raw[docid] = raw[docid] || {};
+        raw[docid][term] = this._rawWeight(tf, entry.df, docid, this.docScheme);
+      }
+    }
+    this.docVectors = {};
+    for (const docid of this.corpus.docIds) {
+      this.docVectors[docid] = this._normalize(raw[docid] || {}, this.docScheme[2], docid);
+    }
+  }
+
+  queryVector(queryText) {
+    const tokens = preprocess(queryText);
+    const tf = counter(tokens);
+    const tfVals = Object.values(tf);
+    const maxq = tfVals.length ? Math.max(...tfVals) : 0;
+    const avgq = tfVals.length ? tfVals.reduce((a, c) => a + c, 0) / tfVals.length : 0;
+
+    const raw = {};
+    for (const term in tf) {
+      const entry = this.index[term];
+      const df = entry ? entry.df : 0;
+      const tfW = TF_FUNCS[this.queryScheme[0]](tf[term], maxq, avgq);
+      const dfW = DF_FUNCS[this.queryScheme[1]](df, this.N);
+      raw[term] = tfW * dfW;
+    }
+    const vec = this._normalize(raw, this.queryScheme[2], undefined, queryText.length || Object.keys(raw).length);
+    const oov = [...new Set(tokens)].filter(t => !this.index[t]);
+    return [vec, tokens, oov];
+  }
+
+  search(queryText, topK = 10) {
+    const [qVec, , oov] = this.queryVector(queryText);
+    const scores = {};
+    for (const term in qVec) {
+      const wqt = qVec[term];
+      if (!wqt) continue;
+      const entry = this.index[term];
+      if (!entry) continue;
+      for (const docid in entry.postings) {
+        const wdt = (this.docVectors[docid] && this.docVectors[docid][term]) || 0;
+        if (wdt) scores[docid] = (scores[docid] || 0) + wqt * wdt;
+      }
+    }
+    const ranked = Object.entries(scores)
+      .filter(([, s]) => s !== 0)
+      .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
+    return [ranked.slice(0, topK), oov];
+  }
+}
+
+// ===================== NOVELTY 7: NDCG (Jarvelin & Kekalainen, 2002) =====================
+function dcgAtK(relevances, k) {
+  let s = 0;
+  for (let i = 0; i < Math.min(k, relevances.length); i++) {
+    s += (Math.pow(2, relevances[i]) - 1) / Math.log2(i + 2); // i is 0-indexed -> rank i+1
+  }
+  return s;
+}
+function ndcgAtK(rankedDocids, judgments, k) {
+  const rels = rankedDocids.map(d => judgments[d] || 0);
+  const dcg = dcgAtK(rels, k);
+  const ideal = [...rels].sort((a, b) => b - a);
+  const idcg = dcgAtK(ideal, k);
+  return idcg > 0 ? dcg / idcg : 0;
+}
+
+// ===================== Fuzzy (typo tolerance) =====================
+function levenshtein(a, b) {
+  if (a === b) return 0;
+  if (!a) return b.length;
+  if (!b) return a.length;
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const curr = [i];
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+    }
+    prev = curr;
+  }
+  return prev[b.length];
+}
+function suggestCorrection(term, dictionaryTerms, maxDistance = 2) {
+  let best = null, bestDist = maxDistance + 1;
+  for (const cand of dictionaryTerms) {
+    if (Math.abs(cand.length - term.length) > maxDistance) continue;
+    const d = levenshtein(term, cand);
+    if (d < bestDist || (d === bestDist && (best === null || cand < best))) { best = cand; bestDist = d; }
+  }
+  return bestDist <= maxDistance ? best : null;
+}
+function correctQuery(queryText, index) {
+  const tokens = preprocess(queryText);
+  const dictionary = Object.keys(index);
+  const corrections = {};
+  const correctedTokens = tokens.map(t => {
+    if (index[t]) return t;
+    const sug = suggestCorrection(t, dictionary);
+    if (sug) { corrections[t] = sug; return sug; }
+    return t;
+  });
+  return [correctedTokens, corrections];
+}
+
+// ===================== Search Engine Facade =====================
+class SearchEngine {
+  constructor(docs) {
+    this.corpus = buildCorpusModel(docs);
+    this.positionalIndex = buildPositionalIndex(this.corpus);
+    this.invertedIndex = buildInvertedFromPositional(this.positionalIndex);
+    this.titleIndex = buildTitleFieldIndex(this.corpus);
+    this.vsm = new VSMIndex(this.corpus, this.invertedIndex);
+    this.bm25 = new BM25Index(this.corpus, this.invertedIndex);
+    this.sdmOnVsm = new SDMRanker(this.corpus, this.positionalIndex, this.vsm);
+    this.sdmOnBm25 = new SDMRanker(this.corpus, this.positionalIndex, this.bm25);
+    this.fieldedVsm = new FieldBoostedRanker(this.vsm, this.titleIndex);
+    this.customVsm = null;       // built lazily once the user touches the SMART builder
+    this.customScheme = null;    // ["lnc", "ltc"] once set
+  }
+  setCustomScheme(docScheme, queryScheme) {
+    this.customScheme = [docScheme, queryScheme];
+    this.customVsm = new SmartVSMIndex(this.corpus, this.invertedIndex, docScheme, queryScheme);
+  }
+  _format(ranked) {
+    return ranked.map(([docid, score]) => {
+      const d = this.corpus.docById[docid];
+      return { docid, title: d.title, category: d.category, score: Math.round(score * 10000) / 10000 };
+    });
+  }
+  searchVsm(q, topK = 10) { const [r, oov] = this.vsm.search(q, topK); return [this._format(r), oov]; }
+  searchBm25(q, topK = 10) { const [r, oov] = this.bm25.search(q, topK); return [this._format(r), oov]; }
+  searchSdm(q, topK = 10, base = 'vsm') {
+    const ranker = base === 'vsm' ? this.sdmOnVsm : this.sdmOnBm25;
+    const [r, oov, ev] = ranker.search(q, topK);
+    return [this._format(r), oov, ev];
+  }
+  searchFielded(q, topK = 10) { const [r, oov] = this.fieldedVsm.search(q, topK); return [this._format(r), oov]; }
+  searchCustom(q, topK = 10) {
+    if (!this.customVsm) this.setCustomScheme("lnc", "ltc");
+    const [r, oov] = this.customVsm.search(q, topK);
+    return [this._format(r), oov];
+  }
+  searchWithTypoTolerance(q, topK = 10) {
+    const [correctedTokens, corrections] = correctQuery(q, this.invertedIndex);
+    const [r, oov] = this.vsm.search(correctedTokens.join(' '), topK);
+    return [this._format(r), corrections];
+  }
+  searchPhrase(phrase, topK = 10) {
+    const matches = phraseSearch(this.positionalIndex, phrase);
+    const ranked = Object.entries(matches).sort((a, b) => b[1].length - a[1].length || (a[0] < b[0] ? -1 : 1)).slice(0, topK);
+    return ranked.map(([d, pos]) => ({ docid: d, title: this.corpus.docById[d].title, category: this.corpus.docById[d].category, matchPositions: pos }));
+  }
+  searchProximity(termA, termB, k, ordered = true, topK = 10) {
+    const matches = proximitySearch(this.positionalIndex, termA, termB, k, ordered);
+    const ranked = Object.entries(matches).sort((a, b) => b[1].length - a[1].length || (a[0] < b[0] ? -1 : 1)).slice(0, topK);
+    return ranked.map(([d, pairs]) => ({ docid: d, title: this.corpus.docById[d].title, category: this.corpus.docById[d].category, matchPositions: pairs }));
+  }
+}
+
+
+
+</script>
+<script>
+// ===================== Color swatch lookup =====================
+const COLOR_HEX = {
+  black: "#25231F", white: "#F5F3EC", grey: "#9C978C", gray: "#9C978C",
+  blue: "#3A5A8C", green: "#4C6E4A", red: "#A63A2E", pink: "#D98CA0",
+  beige: "#D8C6A0", olive: "#6E6B3A", "olive green": "#6E6B3A",
+  maroon: "#6B2530", mustard: "#CE9A3B", "sky blue": "#7FA8C9",
+  "navy blue": "#22304A", teal: "#357A72", wine: "#5C2331",
+  yellow: "#D9B84C", purple: "#6B4A82",
+};
+function swatchColorFor(title) {
+  const parts = title.split(" - ");
+  const colorName = (parts[parts.length - 1] || "").trim().toLowerCase();
+  return COLOR_HEX[colorName] || "#B9B098";
+}
+
+// ===================== App state =====================
+let engine = null;
+let mode = "freetext"; // 'freetext' | 'positional'
+let ranker = "vsm";     // 'vsm' | 'bm25' | 'sdm' | 'fielded'
+let posSubmode = "phrase"; // 'phrase' | 'proximity'
+let proximityOrdered = true;
+let lastFreeTextQuery = "";
+let compareOpen = false;
+
+const el = (id) => document.getElementById(id);
+
+function init(corpusData) {
+  engine = new SearchEngine(corpusData);
+  el("stat-docs").textContent = engine.corpus.N;
+  el("stat-terms").textContent = Object.keys(engine.invertedIndex).length;
+
+  el("mode-freetext").addEventListener("click", () => switchMode("freetext"));
+  el("mode-positional").addEventListener("click", () => switchMode("positional"));
+  el("mode-ndcg").addEventListener("click", () => switchMode("ndcg"));
+  el("search-form").addEventListener("submit", onSearchSubmit);
+
+  document.querySelectorAll(".chip[data-ranker]").forEach(chip => {
+    chip.addEventListener("click", () => {
+      ranker = chip.dataset.ranker;
+      document.querySelectorAll(".chip[data-ranker]").forEach(c => c.classList.toggle("active", c === chip));
+      el("custom-vsm-panel").style.display = ranker === "custom" ? "" : "none";
+      if (lastFreeTextQuery) runFreeText(lastFreeTextQuery);
+    });
+  });
+
+  el("posSub-phrase").addEventListener("click", () => switchPosSub("phrase"));
+  el("posSub-proximity").addEventListener("click", () => switchPosSub("proximity"));
+
+  el("compare-btn").addEventListener("click", () => {
+    compareOpen = !compareOpen;
+    if (lastFreeTextQuery) runFreeText(lastFreeTextQuery);
+  });
+
+  initCustomVsmControls();
+
+  // seed with an example so the page never opens empty
+  el("query-input").value = "cotton shirt";
+  runFreeText("cotton shirt");
+}
+
+function switchMode(m) {
+  mode = m;
+  el("mode-freetext").classList.toggle("active", m === "freetext");
+  el("mode-positional").classList.toggle("active", m === "positional");
+  el("mode-ndcg").classList.toggle("active", m === "ndcg");
+
+  el("freetext-search-row").style.display = m === "positional" ? "none" : "";
+  el("freetext-controls").style.display = m === "freetext" ? "" : "none";
+  el("positional-controls").style.display = m === "positional" ? "flex" : "none";
+  el("ndcg-controls").style.display = m === "ndcg" ? "block" : "none";
+
+  el("results").style.display = m === "ndcg" ? "none" : "";
+  el("results").innerHTML = "";
+  el("results-meta").style.display = "none";
+  el("ndcg-panel").style.display = m === "ndcg" ? "" : "none";
+  if (m !== "ndcg") el("ndcg-panel").innerHTML = "";
+  el("compare-btn").style.display = "none";
+  el("compare-panel").style.display = "none";
+
+  if (m === "positional") renderPositionalControls();
+  if (m === "ndcg" && lastFreeTextQuery) runNdcg(lastFreeTextQuery);
+}
+
+function switchPosSub(s) {
+  posSubmode = s;
+  el("posSub-phrase").classList.toggle("active", s === "phrase");
+  el("posSub-proximity").classList.toggle("active", s === "proximity");
+  renderPositionalControls();
+}
+
+function renderPositionalControls() {
+  const wrap = el("positional-fields");
+  if (posSubmode === "phrase") {
+    wrap.innerHTML = `<div class="field-row">
+      <input type="text" id="phrase-input" placeholder="e.g. cotton shirt" value="cotton shirt" style="width:220px;">
+      <button class="btn-primary" type="submit">Search</button>
+    </div>`;
+  } else {
+    wrap.innerHTML = `<div class="field-row">
+      <input type="text" id="term-a" placeholder="term A" value="stretch">
+      <span class="mono" style="color:var(--ink-soft); font-size:12px;">WITHIN</span>
+      <input type="text" id="k-input" class="k-input" value="4">
+      <span class="mono" style="color:var(--ink-soft); font-size:12px;">of</span>
+      <input type="text" id="term-b" placeholder="term B" value="denim">
+      <div class="toggle-order">
+        <button id="order-ordered" class="${proximityOrdered ? 'active' : ''}" type="button">ordered</button>
+        <button id="order-unordered" class="${!proximityOrdered ? 'active' : ''}" type="button">unordered</button>
+      </div>
+      <button class="btn-primary" type="submit">Search</button>
+    </div>`;
+    el("order-ordered").addEventListener("click", () => { proximityOrdered = true; syncOrderToggle(); });
+    el("order-unordered").addEventListener("click", () => { proximityOrdered = false; syncOrderToggle(); });
+  }
+}
+
+function syncOrderToggle() {
+  const o = el("order-ordered"), u = el("order-unordered");
+  if (o && u) { o.classList.toggle("active", proximityOrdered); u.classList.toggle("active", !proximityOrdered); }
+}
+
+// The page has three search modes (free-text, positional, and NDCG).
+// This dispatcher converts the currently active input controls into the
+// appropriate backend call without exposing the underlying engine details to UI code.
+function onSearchSubmit(e) {
+  e.preventDefault();
+  if (mode === "freetext") {
+    const q = el("query-input").value.trim();
+    if (q) runFreeText(q);
+  } else if (mode === "ndcg") {
+    const q = el("query-input").value.trim();
+    if (q) runNdcg(q);
+  } else if (posSubmode === "phrase") {
+    const phrase = el("phrase-input").value.trim();
+    if (phrase) runPhrase(phrase);
+  } else {
+    const a = el("term-a").value.trim();
+    const b = el("term-b").value.trim();
+    const k = parseInt(el("k-input").value, 10) || 3;
+    if (a && b) runProximity(a, b, k);
+  }
+  return false;
+}
+
+// ---------------- Free text ----------------
+// Free-text queries are the main ranking path: the selected ranker decides the
+// score, then the UI renders a standardized result list with snippets and
+// optional diagnostics. This keeps all modes consistent while still allowing
+// different backends (VSM, BM25, SDM, fielded, custom SMART) to plug in.
+function runFreeText(query) {
+  lastFreeTextQuery = query;
+  let results, oov, evidence = null;
+  if (ranker === "vsm") [results, oov] = engine.searchVsm(query, 10);
+  else if (ranker === "bm25") [results, oov] = engine.searchBm25(query, 10);
+  else if (ranker === "sdm") [results, oov, evidence] = engine.searchSdm(query, 10, "vsm");
+  else if (ranker === "custom") [results, oov] = engine.searchCustom(query, 10);
+  else [results, oov] = engine.searchFielded(query, 10);
+
+  const metaEl = el("results-meta");
+  metaEl.style.display = "flex";
+  metaEl.innerHTML = `<span><span class="rm-count">${results.length}</span> <span class="rm-query">result${results.length === 1 ? '' : 's'} for &ldquo;${escapeHtml(query)}&rdquo;</span></span>
+    <span class="rm-ranker">${rankerLabel(ranker)}</span>`;
+
+  const container = el("results");
+  container.innerHTML = "";
+
+  if (oov && oov.length) {
+    const note = document.createElement("div");
+    note.className = "oov-note";
+    note.textContent = `not in dictionary: ${oov.join(", ")}`;
+    container.appendChild(note);
+
+    if (results.length === 0) {
+      const [ttResults, corrections] = engine.searchWithTypoTolerance(query, 5);
+      if (Object.keys(corrections).length) {
+        const c = document.createElement("div");
+        c.className = "correction-note";
+        c.innerHTML = `did you mean: ` + Object.entries(corrections).map(([a, b]) => `<b>${a}</b> &rarr; <b>${b}</b>`).join(", ");
+        container.appendChild(c);
+        renderFreeTextRows(ttResults, container, "vsm", null, true);
+      }
+    }
+  }
+
+  if (results.length === 0 && (!oov || oov.length === 0)) {
+    const note = document.createElement("div");
+    note.className = "empty-note";
+    note.textContent = "no matching documents";
+    container.appendChild(note);
+  }
+
+  renderFreeTextRows(results, container, ranker, evidence);
+
+  el("compare-btn").style.display = "";
+  el("compare-btn").textContent = compareOpen ? "Hide ranker comparison" : "Compare all rankers on this query \u2192";
+
+  const compareWrap = el("compare-panel");
+  if (compareOpen) {
+    compareWrap.style.display = "";
+    renderComparePanel(query);
+  } else {
+    compareWrap.style.display = "none";
+    compareWrap.innerHTML = "";
+  }
+}
+
+function rankerLabel(r) {
+  if (r === "custom") {
+    const scheme = engine.customScheme || ["lnc", "ltc"];
+    return `Custom VSM (${scheme[0]}.${scheme[1]})`;
+  }
+  return { vsm: "VSM (lnc.ltc)", bm25: "BM25", sdm: "SDM (positional)", fielded: "title-boosted VSM" }[r];
+}
+
+function renderFreeTextRows(results, container, rankerUsed, evidence, muted) {
+  const maxScore = Math.max(0.0001, ...results.map(r => r.score));
+  const qTermsStemmed = [...new Set(preprocess(lastFreeTextQuery))];
+  results.forEach((r, i) => {
+    const row = document.createElement("div");
+    row.className = "result-row";
+    row.style.setProperty("--i", i);
+    const swatch = swatchColorFor(r.title);
+    const barPct = Math.max(4, Math.round((r.score / maxScore) * 100));
+    const snippetHtml = buildSnippet(r.docid, qTermsStemmed);
+
+    row.innerHTML = `
+      <div class="rank">${i + 1}</div>
+      <div class="result-main">
+        <div class="meta-line"><span class="swatch-dot" style="background:${swatch}"></span><span class="docid">${r.docid}</span> &middot; ${escapeHtml(r.category)}</div>
+        <div class="result-title">${escapeHtml(r.title)}</div>
+        <div class="snippet">${snippetHtml}</div>
+        <button class="inspect-toggle" type="button">inspect score \u25be</button>
+        <div class="details-panel" style="display:none;"></div>
+      </div>
+      <div class="score-col">
+        <div class="score-num">${r.score.toFixed(4)}</div>
+        <div class="score-bar-track"><div class="score-bar-fill" style="width:${barPct}%"></div></div>
+      </div>
+    `;
+    const toggleBtn = row.querySelector(".inspect-toggle");
+    const panel = row.querySelector(".details-panel");
+    toggleBtn.addEventListener("click", () => {
+      const showing = panel.style.display !== "none";
+      panel.style.display = showing ? "none" : "block";
+      toggleBtn.textContent = showing ? "inspect score \u25be" : "inspect score \u25b4";
+      if (!showing && !panel.dataset.filled) {
+        panel.innerHTML = buildInspectPanel(r.docid, lastFreeTextQuery, rankerUsed, evidence);
+        panel.dataset.filled = "1";
+      }
+    });
+    container.appendChild(row);
+  });
+}
+
+// The score inspector is a low-level debug view: it shows the same stemmed
+// terms seen by the ranker, the term frequency in the selected document, and
+// the corpus df/idf values used to explain why a document scored where it did.
+function buildInspectPanel(docid, query, rankerUsed, evidence) {
+  const qTokens = [...new Set(preprocess(query))];
+  const rows = qTokens.map(term => {
+    const entry = engine.invertedIndex[term];
+    const df = entry ? entry.df : 0;
+    const tf = entry && entry.postings[docid] !== undefined ? entry.postings[docid] : 0;
+    const idf = engine.vsm.idf(term);
+    return `<tr><td class="mono">${term}</td><td>${tf}</td><td>${df}</td><td>${idf.toFixed(3)}</td></tr>`;
+  }).join("");
+
+  let extra = "";
+  if (rankerUsed === "sdm" && evidence) {
+    const o = evidence.orderedHits[docid] || 0;
+    const u = evidence.unorderedHits[docid] || 0;
+    extra = `<div style="margin-top:8px;">ordered-bigram hits: <b>${o}</b> &middot; unordered-window hits: <b>${u}</b>
+      &mdash; SDM = 0.8&middot;unigram + 0.15&middot;ordered + 0.05&middot;unordered</div>`;
+  }
+  if (rankerUsed === "fielded") {
+    const inTitle = qTokens.filter(t => engine.titleIndex[t] && engine.titleIndex[t][docid] !== undefined);
+    extra = `<div style="margin-top:8px;">query terms found in title/category: <b>${inTitle.length ? inTitle.join(", ") : "none"}</b> (&times;1.5 boost each)</div>`;
+  }
+
+  return `<table><thead><tr><th>stemmed term</th><th>tf in doc</th><th>df</th><th>idf</th></tr></thead>
+    <tbody>${rows}</tbody></table>${extra}`;
+}
+
+// ---------------- Compare panel ----------------
+function renderComparePanel(query) {
+  const panel = el("compare-panel");
+  const rankers = [
+    ["VSM (lnc.ltc)", () => engine.searchVsm(query, 5)[0]],
+    ["BM25", () => engine.searchBm25(query, 5)[0]],
+    ["SDM", () => engine.searchSdm(query, 5, "vsm")[0]],
+    ["Fielded VSM", () => engine.searchFielded(query, 5)[0]],
+  ];
+  if (engine.customVsm) {
+    rankers.push([`Custom (${engine.customScheme.join(".")})`, () => engine.searchCustom(query, 5)[0]]);
+  }
+  let html = `<div class="compare-wrap"><table class="compare"><thead><tr>` +
+    rankers.map(([label]) => `<th>${label}</th>`).join("") + `</tr></thead><tbody>`;
+  const cols = rankers.map(([, fn]) => fn());
+  const maxLen = Math.max(...cols.map(c => c.length), 1);
+  for (let i = 0; i < maxLen; i++) {
+    html += "<tr>" + cols.map(col => {
+      const r = col[i];
+      if (!r) return "<td></td>";
+      return `<td><span class="c-docid">${r.docid}</span><br><span class="c-title">${escapeHtml(r.title)}</span><br><span class="c-score">${r.score.toFixed(4)}</span></td>`;
+    }).join("") + "</tr>";
+  }
+  html += "</tbody></table></div>";
+  panel.innerHTML = html;
+}
+
+// ---------------- Phrase ----------------
+function runPhrase(phrase) {
+  const results = engine.searchPhrase(phrase, 10);
+  const baselineMap = computeBaselineRankMap(engine.vsm, phrase, 100);
+  const qTermsStemmed = preprocess(phrase);
+  const metaEl = el("results-meta");
+  metaEl.style.display = "flex";
+  metaEl.innerHTML = `<span><span class="rm-count">${results.length}</span> <span class="rm-query">exact match${results.length === 1 ? '' : 'es'} for &ldquo;${escapeHtml(phrase)}&rdquo;</span></span><span class="rm-ranker">positional index &middot; badges vs. plain VSM</span>`;
+  el("compare-btn").style.display = "none";
+  el("compare-panel").style.display = "none";
+
+  const container = el("results");
+  container.innerHTML = "";
+  if (!results.length) {
+    container.innerHTML = `<div class="empty-note">no exact phrase matches</div>`;
+    return;
+  }
+  results.forEach((r, i) => {
+    container.appendChild(buildPositionalRow(r, i, r.matchPositions.map(p => [p]), false, baselineMap, qTermsStemmed));
+  });
+}
+
+// ---------------- Proximity ----------------
+function runProximity(a, b, k) {
+  const results = engine.searchProximity(a, b, k, proximityOrdered, 10);
+  const baselineMap = computeBaselineRankMap(engine.vsm, `${a} ${b}`, 100);
+  const qTermsStemmed = preprocess(`${a} ${b}`);
+  const metaEl = el("results-meta");
+  metaEl.style.display = "flex";
+  const rel = proximityOrdered ? `WITHIN/${k} (ordered)` : `WITHIN/${k} (unordered)`;
+  metaEl.innerHTML = `<span><span class="rm-count">${results.length}</span> <span class="rm-query">match${results.length === 1 ? '' : 'es'}: &ldquo;${escapeHtml(a)}&rdquo; ${rel} &ldquo;${escapeHtml(b)}&rdquo;</span></span><span class="rm-ranker">positional index &middot; badges vs. plain VSM</span>`;
+  el("compare-btn").style.display = "none";
+  el("compare-panel").style.display = "none";
+
+  const container = el("results");
+  container.innerHTML = "";
+  if (!results.length) {
+    container.innerHTML = `<div class="empty-note">no proximity matches within this window</div>`;
+    return;
+  }
+  results.forEach((r, i) => {
+    container.appendChild(buildPositionalRow(r, i, r.matchPositions, true, baselineMap, qTermsStemmed));
+  });
+}
+
+function buildPositionalRow(r, i, pairs, isPair, baselineMap, qTermsStemmed) {
+  const row = document.createElement("div");
+  row.className = "result-row";
+  row.style.setProperty("--i", i);
+  const swatch = swatchColorFor(r.title);
+  const docLen = engine.corpus.docTokens[r.docid].length;
+
+  const hitsA = new Set(), hitsB = new Set();
+  pairs.forEach(p => { if (isPair) { hitsA.add(p[0]); hitsB.add(p[1]); } else { hitsA.add(p[0]); } });
+
+  let ruler = `<div class="ruler">`;
+  for (let pos = 0; pos < docLen; pos++) {
+    let cls = "tick";
+    if (hitsA.has(pos)) cls += " hit";
+    else if (hitsB.has(pos)) cls += " hit second";
+    ruler += `<div class="${cls}"></div>`;
+  }
+  ruler += `</div>`;
+
+  const badge = rankShiftBadge(r.docid, i + 1, baselineMap);
+  const snippetHtml = buildSnippet(r.docid, qTermsStemmed || []);
+
+  row.innerHTML = `
+    <div class="rank">${i + 1}</div>
+    <div class="result-main">
+      <div class="meta-line"><span class="swatch-dot" style="background:${swatch}"></span><span class="docid">${r.docid}</span> &middot; ${escapeHtml(r.category)}${badge}</div>
+      <div class="result-title">${escapeHtml(r.title)}</div>
+      <div class="snippet">${snippetHtml}</div>
+      <div class="mono" style="font-size:11px; color:var(--text-muted); margin:2px 0 4px;">
+        match position${pairs.length === 1 ? '' : 's'}: ${pairs.map(p => isPair ? `(${p[0]},${p[1]})` : p[0]).join("  ")}
+      </div>
+      ${ruler}
+    </div>
+    <div></div>
+  `;
+  return row;
+}
+
+// ---------------- NOVELTY 8: Custom SMART VSM controls ----------------
+function initCustomVsmControls() {
+  const fill = (id, labels, selected) => {
+    const sel = el(id);
+    sel.innerHTML = Object.entries(labels).map(([code, label]) =>
+      `<option value="${code}" ${code === selected ? "selected" : ""}>${label}</option>`).join("");
+  };
+  fill("cv-doc-tf", TF_LABELS, "l");
+  fill("cv-doc-df", DF_LABELS, "n");
+  fill("cv-doc-norm", NORM_LABELS, "c");
+  fill("cv-q-tf", TF_LABELS, "l");
+  fill("cv-q-df", DF_LABELS, "t");
+  fill("cv-q-norm", NORM_LABELS, "c");
+
+  ["cv-doc-tf", "cv-doc-df", "cv-doc-norm", "cv-q-tf", "cv-q-df", "cv-q-norm"]
+    .forEach(id => el(id).addEventListener("change", applyCustomVsmScheme));
+  applyCustomVsmScheme();
+
+  el("cv-toggle-ref").addEventListener("click", () => {
+    const wrap = el("cv-ref-table");
+    const showing = wrap.style.display !== "none";
+    wrap.style.display = showing ? "none" : "block";
+    el("cv-toggle-ref").textContent = showing
+      ? "show tf\u00b7df\u00b7norm variant reference \u25be"
+      : "hide tf\u00b7df\u00b7norm variant reference \u25b4";
+    if (!showing && !wrap.dataset.filled) {
+      wrap.innerHTML = buildTfIdfRefTable();
+      wrap.dataset.filled = "1";
+    }
+  });
+}
+
+function applyCustomVsmScheme() {
+  const docScheme = el("cv-doc-tf").value + el("cv-doc-df").value + el("cv-doc-norm").value;
+  const queryScheme = el("cv-q-tf").value + el("cv-q-df").value + el("cv-q-norm").value;
+  engine.setCustomScheme(docScheme, queryScheme);
+  el("cv-notation-doc").textContent = docScheme;
+  el("cv-notation-q").textContent = queryScheme;
+  if (ranker === "custom" && lastFreeTextQuery) runFreeText(lastFreeTextQuery);
+}
+
+function buildTfIdfRefTable() {
+  const rows = [
+    ["Term frequency", "n", "natural", "tf<sub>t,d</sub>"],
+    ["", "l", "logarithm", "1 + log(tf<sub>t,d</sub>)"],
+    ["", "a", "augmented", "0.5 + 0.5 &times; tf / max<sub>t</sub>(tf)"],
+    ["", "b", "boolean", "1 if tf &gt; 0 else 0"],
+    ["", "L", "log average", "(1+log tf) / (1+log avg<sub>t&isin;d</sub>(tf))"],
+    ["Document frequency", "n", "no idf", "1"],
+    ["", "t", "idf", "log(N / df<sub>t</sub>)"],
+    ["", "p", "prob idf", "max{0, log((N&minus;df<sub>t</sub>)/df<sub>t</sub>)}"],
+    ["Normalization", "n", "none", "1"],
+    ["", "c", "cosine", "1 / &radic;(w<sub>1</sub>&sup2;+&hellip;+w<sub>M</sub>&sup2;)"],
+    ["", "u", "pivoted unique*", "1 / (unique terms in doc)*"],
+    ["", "b", "byte size", "1 / CharLength<sup>0.75</sup>"],
+  ];
+  const trs = rows.map(([group, code, name, formula]) =>
+    `<tr><td>${group}</td><td><b>${code}</b></td><td>${name}</td><td class="mono">${formula}</td></tr>`).join("");
+  return `<table class="tfidf-ref"><thead><tr><th>Component</th><th>Code</th><th>Name</th><th>Formula</th></tr></thead><tbody>${trs}</tbody></table>
+    <div class="ndcg-note">* simplified stand-in, not the textbook pivoted-normalization formula &mdash; see the SmartVSMIndex._normalize() comment in source for exactly what's approximated and why.</div>`;
+}
+
+// ---------------- NOVELTY 7: Relevance & NDCG tab ----------------
+const NDCG_RANKERS = [
+  ["vsm", "VSM (lnc.ltc)", (q, k) => engine.vsm.search(q, k)],
+  ["bm25", "BM25", (q, k) => engine.bm25.search(q, k)],
+  ["sdm", "SDM", (q, k) => engine.sdmOnVsm.search(q, k)],
+  ["fielded", "Title-boosted VSM", (q, k) => engine.fieldedVsm.search(q, k)],
+];
+
+let ndcgJudgments = {};      // docid -> 0..3, reset per query
+let ndcgPerRankerDocs = {};  // rankerKey -> [docid, ...] top-10 order
+let ndcgPoolDocids = [];
+
+function runNdcg(query) {
+  lastFreeTextQuery = query;
+  ndcgJudgments = {};
+  ndcgPerRankerDocs = {};
+  const poolSet = new Set();
+  const rankersToUse = engine.customVsm ? NDCG_RANKERS.concat([["custom", `Custom (${engine.customScheme.join(".")})`, (q, k) => engine.customVsm.search(q, k)]]) : NDCG_RANKERS;
+
+  rankersToUse.forEach(([key, , fn]) => {
+    const [ranked] = fn(query, 10);
+    ndcgPerRankerDocs[key] = ranked.map(([docid]) => docid);
+    ranked.forEach(([docid]) => poolSet.add(docid));
+  });
+  ndcgPoolDocids = [...poolSet];
+
+  renderNdcgPanel(query, rankersToUse);
+}
+
+// NDCG judging is intentionally user-driven: the query is pooled across all
+// rankers, then the user grades each candidate document on a 0-3 relevance
+// scale. This makes the evaluation interactive and keeps the relevance labels
+// fully external to the retrieval code, as in a real IR benchmark workflow.
+function renderNdcgPanel(query, rankersToUse) {
+  const panel = el("ndcg-panel");
+  if (!ndcgPoolDocids.length) {
+    panel.innerHTML = `<div class="empty-note">no matching documents across any ranker for &ldquo;${escapeHtml(query)}&rdquo;</div>`;
+    return;
+  }
+  const qTermsStemmed = [...new Set(preprocess(query))];
+
+  let judgeHtml = `<div class="ndcg-section-title">Grade relevance (pooled top-10 across ${rankersToUse.length} rankers, ${ndcgPoolDocids.length} unique documents)</div>`;
+  ndcgPoolDocids.forEach((docid, i) => {
+    const d = engine.corpus.docById[docid];
+    const snippetHtml = buildSnippet(docid, qTermsStemmed);
+    const grade = ndcgJudgments[docid] || 0;
+    const btns = [0, 1, 2, 3].map(g =>
+      `<button type="button" class="grade-btn ${g === grade ? 'active' : ''}" data-docid="${docid}" data-grade="${g}">${g}</button>`).join("");
+    judgeHtml += `
+      <div class="ndcg-judge-row">
+        <div class="rank">${i + 1}</div>
+        <div>
+          <div class="meta-line"><span class="docid">${docid}</span> &middot; ${escapeHtml(d.category)}</div>
+          <div class="result-title">${escapeHtml(d.title)}</div>
+          <div class="snippet">${snippetHtml}</div>
+        </div>
+        <div class="grade-group" data-docid="${docid}">${btns}</div>
+      </div>`;
+  });
+
+  panel.innerHTML = judgeHtml + `<div class="ndcg-section-title">NDCG@10 by ranker (recomputes as you grade)</div>
+    <div id="ndcg-summary"></div>
+    <div class="ndcg-note">Grades are 0 (not relevant) to 3 (highly relevant), supplied by you for this session only &mdash; nothing is hard-coded. NDCG@k = DCG@k / IDCG@k, DCG@k = &Sigma; (2<sup>rel<sub>i</sub></sup>&minus;1)/log&#8322;(i+1) (J&auml;rvelin &amp; Kek&auml;l&auml;inen, ACM TOIS 2002). Ungraded documents default to relevance 0.</div>`;
+
+  panel.querySelectorAll(".grade-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const docid = btn.dataset.docid;
+      const grade = parseInt(btn.dataset.grade, 10);
+      ndcgJudgments[docid] = grade;
+      panel.querySelectorAll(`.grade-group[data-docid="${docid}"] .grade-btn`).forEach(b =>
+        b.classList.toggle("active", parseInt(b.dataset.grade, 10) === grade));
+      renderNdcgSummary(rankersToUse);
+    });
+  });
+
+  renderNdcgSummary(rankersToUse);
+}
+
+function renderNdcgSummary(rankersToUse) {
+  const rows = rankersToUse.map(([key, label]) => {
+    const docs = ndcgPerRankerDocs[key] || [];
+    const ndcg10 = ndcgAtK(docs, ndcgJudgments, 10);
+    const ndcg5 = ndcgAtK(docs, ndcgJudgments, 5);
+    return { label, ndcg10, ndcg5 };
+  }).sort((a, b) => b.ndcg10 - a.ndcg10);
+
+  const trs = rows.map(r => `
+    <tr>
+      <td>${r.label}</td>
+      <td class="mono">${r.ndcg10.toFixed(4)}</td>
+      <td class="mono">${r.ndcg5.toFixed(4)}</td>
+      <td><div class="ndcg-bar-track"><div class="ndcg-bar-fill" style="width:${Math.round(r.ndcg10 * 100)}%"></div></div></td>
+    </tr>`).join("");
+
+  el("ndcg-summary").innerHTML = `<table class="ndcg-summary-table">
+    <thead><tr><th>Ranker</th><th>NDCG@10</th><th>NDCG@5</th><th></th></tr></thead>
+    <tbody>${trs}</tbody></table>`;
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+</script>
+<script>
+  init(CORPUS_DATA);
+</script>
+
+</body>
+</html>
